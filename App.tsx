@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
@@ -24,7 +25,6 @@ import {
   TrendingUp,
   ClipboardList
 } from 'lucide-react';
-import { Analytics } from '@vercel/analytics/react';
 
 // --- Program Display Name Mapping ---
 const programDisplayNames: Record<string, string> = {
@@ -310,7 +310,6 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
 const App: React.FC = () => {
   return (
     <Router>
-      <Analytics />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route 
