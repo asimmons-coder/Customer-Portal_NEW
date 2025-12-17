@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import ExecutiveSignals from './ExecutiveSignals';
 
-// --- Program Display Name Mapping (same as App.tsx) ---
+// --- Program Display Name Mapping ---
 const programDisplayNames: Record<string, string> = {
   'CP-0028': 'GROW - Cohort 1',
   'CP-0117': 'GROW - Cohort 2',
@@ -54,8 +54,12 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   // Persistence for hidden employees
   const [hiddenEmployees, setHiddenEmployees] = useState<Set<string>>(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('boon_hidden_employees');
-      return new Set(saved ? JSON.parse(saved) : []);
+      try {
+        const saved = localStorage.getItem('boon_hidden_employees');
+        return new Set(saved ? JSON.parse(saved) : []);
+      } catch (e) {
+        return new Set();
+      }
     }
     return new Set();
   });
@@ -73,9 +77,9 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         ]);
         
         if (mounted) {
-          setSessions(sessionsData);
-          setEmployees(rosterData);
-          setSurveys(surveyData);
+          setSessions(sessionsData || []);
+          setEmployees(rosterData || []);
+          setSurveys(surveyData || []);
           setError(null);
         }
       } catch (err: any) {
@@ -97,7 +101,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   }, []);
 
   const handleHideEmployee = (e: React.MouseEvent, id: string | number, name: string) => {
-    e.stopPropagation(); // Prevent row click
+    e.stopPropagation();
     if (window.confirm(`Are you sure you want to remove ${name} from this list?`)) {
       const next = new Set(hiddenEmployees);
       next.add(String(id));
@@ -125,10 +129,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     // 1. Initialize from Employees (Roster)
     employees.forEach(emp => {
       const name = emp.full_name || emp.employee_name || emp.name || 'Unknown';
-      
-      // Hardcoded filter for duplicate request
       if (name.toLowerCase() === 'kimberly genes') return;
-      // User hidden filter
       if (hiddenEmployees.has(String(emp.id))) return;
 
       const key = name.toLowerCase();
@@ -155,26 +156,18 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                    ? `${emp.first_name} ${emp.last_name || ''}`.trim()
                    : (session.employee_name || 'Unknown Employee');
       
-      // Hardcoded filter for duplicate request
       if (name.toLowerCase() === 'kimberly genes') return;
-      
-      // User hidden filter (check employee ID if available)
       if (session.employee_id && hiddenEmployees.has(String(session.employee_id))) return;
       
       const key = name.toLowerCase();
-
-      // FIXED: Use program_name for filtering
       const sessionProgram = session.program_name || session.program || '';
       const sessionCohort = session.cohort || session.program_name || '';
 
       let includeSession = true;
-      // FIXED: Use exact match instead of includes()
       if (filterType === 'program' && sessionProgram !== filterValue) includeSession = false;
       if (filterType === 'cohort' && sessionCohort !== filterValue) includeSession = false;
 
-      // Ensure employee entry exists
       if (!statsMap.has(key)) {
-        // If employee wasn't in roster but has sessions, check if this ad-hoc ID is hidden
         if (hiddenEmployees.has(String(session.employee_id || session.id))) return;
 
         statsMap.set(key, {
@@ -193,16 +186,12 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       }
 
       const entry = statsMap.get(key)!;
-
-      // Update entry metadata if missing
       if (!entry.cohort && sessionCohort) entry.cohort = sessionCohort;
       if (entry.program === 'Unassigned' && sessionProgram) entry.program = sessionProgram;
       if (!entry.email && (emp?.email || emp?.company_email)) entry.email = emp?.email || emp?.company_email;
 
-      // Only count the session stats if it passes the filter
       if (includeSession) {
         entry.total += 1;
-
         const statusRaw = (session.status || '').toLowerCase();
         const sessionDate = new Date(session.session_date);
         const isPast = sessionDate < new Date();
@@ -226,31 +215,29 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
 
 
   // --- Filtering Displayed Employees ---
-  const filteredData = aggregatedStats.filter(stat => {
-    const matchesSearch = stat.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    let matchesContext = false;
-    if (stat.total > 0) {
-      matchesContext = true;
-    } else {
-      if (filterType === 'all') matchesContext = true;
-      // FIXED: Use exact match
-      else if (filterType === 'program') matchesContext = (stat.program === filterValue);
-      else if (filterType === 'cohort') matchesContext = (stat.cohort === filterValue);
-    }
+  const filteredData = useMemo(() => {
+    return aggregatedStats.filter(stat => {
+      const matchesSearch = stat.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      let matchesContext = false;
+      if (stat.total > 0) {
+        matchesContext = true;
+      } else {
+        if (filterType === 'all') matchesContext = true;
+        else if (filterType === 'program') matchesContext = (stat.program === filterValue);
+        else if (filterType === 'cohort') matchesContext = (stat.cohort === filterValue);
+      }
 
-    return matchesSearch && matchesContext;
-  });
+      return matchesSearch && matchesContext;
+    });
+  }, [aggregatedStats, searchTerm, filterType, filterValue]);
 
   // --- Survey Metrics Logic ---
   const surveyMetrics = useMemo(() => {
-    // Collect valid emails from the filtered view
     const validEmails = new Set(filteredData.map(e => e.email?.toLowerCase()).filter(Boolean));
     
     const filteredSurveys = surveys.filter(s => {
-        // Special Case: For "All" view, include all surveys to avoid hiding data due to roster mismatches
         if (filterType === 'all') return true;
-
         return s.email && validEmails.has(s.email.toLowerCase());
     });
 
@@ -274,8 +261,10 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   const totalSessions = filteredData.reduce((acc, curr) => acc + curr.total, 0);
   const totalCompleted = filteredData.reduce((acc, curr) => acc + curr.completed, 0);
   
+  // FIX: avg sessions = (completed + no-shows) / totalEmployees
+  const totalCompletedAndNoShows = filteredData.reduce((acc, curr) => acc + curr.completed + curr.noshow, 0);
   const avgSessions = totalEmployees > 0 
-    ? (totalSessions / totalEmployees).toFixed(1) 
+    ? (totalCompletedAndNoShows / totalEmployees).toFixed(1) 
     : '0.0';
 
   const engagedEmployees = filteredData.filter(e => e.total > 0).length;
@@ -301,49 +290,22 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         <AlertCircle className="w-16 h-16 text-boon-red mb-4" />
         <h2 className="text-2xl font-bold text-gray-800 mb-2">Connection Error</h2>
         <p className="text-gray-600 mb-6 max-w-2xl font-mono text-sm bg-gray-50 p-4 rounded border border-gray-200 break-all">{error}</p>
-        
-        <div className="flex flex-wrap gap-4 justify-center">
-            <button 
-              onClick={() => window.location.reload()}
-              className="px-6 py-2 bg-boon-blue text-white font-bold rounded-lg hover:bg-boon-darkBlue transition shadow-sm"
-            >
-              Retry Connection
-            </button>
-            <button 
-             onClick={() => setShowSetup(!showSetup)}
-             className="px-6 py-2 bg-white border border-gray-300 text-gray-700 font-bold rounded-lg hover:bg-gray-50 transition flex items-center gap-2 shadow-sm"
-            >
-                <Database className="w-4 h-4" />
-                {showSetup ? 'Hide Schema Helper' : 'View Schema Helper'}
-            </button>
-        </div>
-
-        {showSetup && (
-          <div className="mt-8 text-left w-full max-w-3xl animate-in fade-in slide-in-from-bottom-2">
-            <SetupGuide />
-          </div>
-        )}
+        <button 
+          onClick={() => window.location.reload()}
+          className="px-6 py-2 bg-boon-blue text-white font-bold rounded-lg hover:bg-boon-darkBlue transition shadow-sm"
+        >
+          Retry Connection
+        </button>
       </div>
     );
   }
 
-  // Display Title logic - UPDATED to use display names
   const displayTitle = filterType === 'all' ? "All Sessions" : "Session Tracking";
-  let displaySubtitle = "";
-  let labelColor = "bg-boon-blue/10 text-boon-blue";
-
-  if (filterType === 'program') {
-    displaySubtitle = getDisplayName(filterValue);
-    labelColor = "bg-boon-blue/10 text-boon-blue";
-  } else if (filterType === 'cohort') {
-    displaySubtitle = filterValue;
-    labelColor = "bg-boon-purple/10 text-boon-purple";
-  }
+  const displaySubtitle = filterType !== 'all' ? getDisplayName(filterValue) : "";
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 pb-20 md:pb-12 font-sans">
       
-      {/* Modal Overlay */}
       {selectedStat && (
         <EmployeeDetailModal 
           employee={selectedStat} 
@@ -371,7 +333,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-2">
             <h1 className="text-2xl md:text-4xl font-extrabold text-boon-dark tracking-tight uppercase">{displayTitle}</h1>
             {filterType !== 'all' && (
-              <span className={`${labelColor} px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-bold uppercase tracking-wide flex items-center gap-1.5 shadow-sm`}>
+              <span className="bg-boon-blue/10 text-boon-blue px-3 py-1 md:px-4 md:py-1.5 rounded-full text-xs md:text-sm font-bold uppercase tracking-wide flex items-center gap-1.5 shadow-sm">
                  <Layers size={14} className="md:w-4 md:h-4" />
                  <span className="truncate max-w-[200px]">{displaySubtitle}</span>
               </span>
@@ -387,7 +349,6 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           </p>
         </div>
         
-        {/* SQL Helper Toggle */}
         <button 
              onClick={() => setShowSetup(!showSetup)}
              className="text-xs font-bold text-gray-400 hover:text-boon-blue transition flex items-center gap-1 uppercase tracking-wide"
@@ -401,7 +362,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
 
       {showSetup && <SetupGuide />}
 
-      {/* KPI Cards Row - Updated Grid for 7 items */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <KPICard 
           title="TOTAL EMPLOYEES" 
@@ -436,22 +397,26 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           textColor="text-boon-dark"
         />
         
-        {/* New NPS & CSAT Cards */}
-        <KPICard 
-          title="NPS SCORE" 
-          value={surveyMetrics.nps !== null ? (surveyMetrics.nps > 0 ? `+${surveyMetrics.nps}` : surveyMetrics.nps) : '-'} 
-          color="bg-boon-coral" 
-          icon={<Users className="w-6 h-6 text-white/50" />}
-        />
-        <KPICard 
-          title="CSAT SCORE" 
-          value={surveyMetrics.avgSat !== null ? `${surveyMetrics.avgSat}/10` : '-'} 
-          color="bg-boon-darkBlue" 
-          icon={<Star className="w-6 h-6 text-white/50" />}
-        />
+        {/* Conditional NPS & CSAT Cards - Fix: hide if no data */}
+        {surveyMetrics.nps !== null && (
+          <KPICard 
+            title="NPS SCORE" 
+            value={surveyMetrics.nps > 0 ? `+${surveyMetrics.nps}` : surveyMetrics.nps} 
+            color="bg-boon-coral" 
+            icon={<Users className="w-6 h-6 text-white/50" />}
+          />
+        )}
+        {surveyMetrics.avgSat !== null && (
+          <KPICard 
+            title="CSAT SCORE" 
+            value={`${surveyMetrics.avgSat}/10`} 
+            color="bg-boon-darkBlue" 
+            icon={<Star className="w-6 h-6 text-white/50" />}
+          />
+        )}
       </div>
 
-      {/* Chart Section */}
+      {/* Chart */}
       <div className="bg-white rounded-2xl md:rounded-3xl p-4 md:p-8 shadow-sm border border-gray-100 relative overflow-hidden">
         <h3 className="text-xs md:text-sm font-bold text-gray-500 uppercase tracking-wider mb-4 md:mb-6 flex items-center gap-2">
           <TrendingUp className="w-4 h-4 text-boon-blue" />
@@ -478,79 +443,13 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         </div>
       </div>
 
-      {/* Employee Progress Table / Cards */}
+      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        {/* Mobile: Card View */}
-        <div className="block md:hidden">
-          {filteredData.length > 0 ? (
-            <div className="divide-y divide-gray-100">
-              {filteredData.map((emp) => (
-                <div 
-                  key={emp.id} 
-                  onClick={() => setSelectedStat(emp)}
-                  className="p-4 active:bg-gray-50 transition-colors relative"
-                >
-                  <button 
-                    onClick={(e) => handleHideEmployee(e, emp.id, emp.name)}
-                    className="absolute top-4 right-4 p-2 text-gray-300 hover:text-boon-red transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                  <div className="flex items-center gap-3 mb-3 pr-8">
-                    <div className="w-10 h-10 rounded-full bg-boon-lightBlue flex items-center justify-center text-sm font-bold text-boon-blue overflow-hidden shrink-0">
-                      {emp.avatar_url ? (
-                        <img src={emp.avatar_url} alt="" className="w-full h-full object-cover"/>
-                      ) : (
-                        emp.name.substring(0,2).toUpperCase()
-                      )}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-800 text-sm">{emp.name}</h4>
-                      <span className="inline-flex mt-1 px-2 py-0.5 rounded text-[10px] font-bold bg-boon-blue/10 text-boon-blue border border-boon-blue/20 uppercase tracking-wide">
-                        {getDisplayName(emp.program)}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-4 gap-2 text-center bg-gray-50 rounded-lg p-2">
-                    <div>
-                      <div className="text-[10px] font-bold text-gray-400 uppercase">Done</div>
-                      <div className="text-boon-green font-bold">{emp.completed}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold text-gray-400 uppercase">Missed</div>
-                      <div className={`font-bold ${emp.noshow > 0 ? 'text-boon-red' : 'text-gray-400'}`}>{emp.noshow > 0 ? emp.noshow : '-'}</div>
-                    </div>
-                     <div>
-                      <div className="text-[10px] font-bold text-gray-400 uppercase">Plan</div>
-                      <div className={`font-bold ${emp.scheduled > 0 ? 'text-gray-700' : 'text-gray-400'}`}>{emp.scheduled > 0 ? emp.scheduled : '-'}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-bold text-gray-400 uppercase">Total</div>
-                      <div className="text-gray-900 font-bold">{emp.total}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="p-8 text-center text-gray-400 italic">
-               No employees found matching your criteria.
-            </div>
-          )}
-        </div>
-
-        {/* Desktop: Table View */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer group hover:bg-gray-100 transition sticky left-0 bg-gray-50 z-10">
-                   <div className="flex items-center gap-1">
-                     Employee Name
-                     <ArrowUp className="w-3 h-3 text-boon-blue opacity-0 group-hover:opacity-100 transition-opacity" />
-                   </div>
-                </th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Program</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Completed</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">No-Shows</th>
@@ -567,7 +466,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                     onClick={() => setSelectedStat(emp)}
                     className="hover:bg-boon-blue/5 transition-colors group cursor-pointer"
                   >
-                    <td className="px-6 py-4 sticky left-0 bg-white group-hover:bg-boon-blue/5 transition-colors">
+                    <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                          <div className="w-8 h-8 rounded-full bg-boon-lightBlue flex items-center justify-center text-xs font-bold text-boon-blue overflow-hidden shrink-0">
                             {emp.avatar_url ? (
@@ -610,7 +509,6 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                       <button 
                         onClick={(e) => handleHideEmployee(e, emp.id, emp.name)}
                         className="p-2 text-gray-300 hover:text-boon-red hover:bg-red-50 rounded-lg transition-colors"
-                        title="Remove from view"
                       >
                          <EyeOff size={16} />
                       </button>
@@ -687,7 +585,6 @@ const SimpleTrendChart = ({ sessions, filterType, filterValue }: { sessions: Ses
     const monthlyCounts: Record<string, number> = {};
     if (sessions.length === 0) return [];
 
-    // FIXED: Filter logic uses program_name and exact match
     const filteredSessions = sessions.filter(s => {
       if (filterType === 'all') return true;
       const sessionProgram = s.program_name || s.program || '';
@@ -728,20 +625,18 @@ const SimpleTrendChart = ({ sessions, filterType, filterValue }: { sessions: Ses
   }
 
   const width = 1000;
-  const height = 260; // Increased height to allow room at bottom
+  const height = 260; 
   const paddingX = 40;
   const paddingTop = 20;
-  const paddingBottom = 50; // Increased to 50px for labels
+  const paddingBottom = 50; 
   
   const values = chartData.map(d => d.value);
-  // Add 20% padding to max value to prevent chart cutoff at the top
   const maxVal = Math.max(...values, 5) * 1.2;
   const minVal = 0;
 
   const points = chartData.map((d, i) => {
     const xRatio = chartData.length > 1 ? i / (chartData.length - 1) : 0.5;
     const x = paddingX + xRatio * (width - 2 * paddingX);
-    // Calculate Y based on available graph height
     const graphHeight = (height - paddingBottom) - paddingTop;
     const y = (height - paddingBottom) - ((d.value - minVal) / (maxVal - minVal)) * graphHeight;
     return { x, y, ...d };
@@ -858,15 +753,16 @@ const KPICard = ({
   icon: React.ReactNode, 
   textColor?: string 
 }) => {
-    const valueColor = textColor || "text-white";
-    const titleColor = textColor ? "text-boon-dark/60" : "text-white/70";
+    const isPrimaryColor = color.startsWith('bg-');
+    const valueColor = textColor || (isPrimaryColor ? "text-white" : "text-gray-800");
+    const titleColor = textColor ? "text-boon-dark/60" : (isPrimaryColor ? "text-white/70" : "text-gray-400");
 
     return (
         <div className={`${color} rounded-2xl p-6 shadow-sm border border-transparent relative overflow-hidden w-full h-full flex flex-col justify-between`}>
-            <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
+            {isPrimaryColor && <div className="absolute -right-6 -top-6 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>}
             
             <div className="flex items-center gap-4 relative z-10">
-              <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm shadow-sm">
+              <div className={`p-3 rounded-xl backdrop-blur-sm shadow-sm ${isPrimaryColor ? 'bg-white/20' : 'bg-gray-50'}`}>
                   {icon}
               </div>
               <div>
