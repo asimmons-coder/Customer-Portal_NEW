@@ -52,6 +52,7 @@ const HomeDashboard: React.FC = () => {
   const [baselineData, setBaselineData] = useState<WelcomeSurveyEntry[]>([]);
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [companyName, setCompanyName] = useState('');
+  const [firstName, setFirstName] = useState('');
 
   // UI State
   const selectedCohort = searchParams.get('cohort') || 'All Cohorts';
@@ -61,10 +62,13 @@ const HomeDashboard: React.FC = () => {
       try {
         setLoading(true);
         
-        // Fetch Auth Session for Company Name
+        // Fetch Auth Session for Company Name and First Name
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.app_metadata?.company) {
           setCompanyName(session.user.app_metadata.company);
+        }
+        if (session?.user?.app_metadata?.first_name || session?.user?.user_metadata?.first_name) {
+          setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
         }
 
         const [sessData, compData, survData, empData, baseData, configData] = await Promise.all([
@@ -315,21 +319,13 @@ const HomeDashboard: React.FC = () => {
     .slice(0, 5);
 
     const getQualityQuotes = (data: any[]) => {
-      const positiveKeywords = ['help', 'learn', 'better', 'insight', 'valu', 'support', 'guid', 'great', 'lov', 'amaz', 'chang', 'grow', 'confiden', 'clarity', 'understand', 'perspect', 'progress', 'thank', 'appreciat', 'impact', 'positive', 'enjoy', 'goal', 'motivat'];
-      const negativeKeywords = ["i don't know", "not sure", "nothing", "n/a", "none", "issue", "problem", "waste", "bad", "difficult", "boring"];
-
       return data
         .filter(d => {
             const text = d.feedback_learned || d.feedback_insight || d.feedback_suggestions;
-            if (!text || text.length < 20) return false;
+            if (!text || text.length < 50) return false;
             const lower = text.toLowerCase();
-            
-            // Exclude negative/dismissive responses
-            if (negativeKeywords.some(w => lower.includes(w))) return false;
-
-            // Ensure response contains positive indicators
-            if (!positiveKeywords.some(w => lower.includes(w))) return false;
-            
+            if (lower.includes("i don't know") || lower.includes("not sure") || lower.includes("nothing")) return false;
+            if (lower.match(/^(great|good|nice|helpful)$/)) return false;
             return true;
         })
         .map(d => d.feedback_learned || d.feedback_insight || d.feedback_suggestions)
@@ -413,7 +409,7 @@ const HomeDashboard: React.FC = () => {
       {/* Header with Cohort Switcher */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
         <div>
-           <h1 className="text-xl text-gray-500 font-medium">Welcome back, <span className="text-boon-dark font-bold">{companyName.split(' - ')[0]}</span></h1>
+           <h1 className="text-xl text-gray-500 font-medium">Welcome back, <span className="text-boon-dark font-bold">{firstName || companyName.split(' - ')[0]}</span></h1>
            <div className="flex flex-wrap items-center gap-2 mt-1">
              <span className="text-3xl font-bold text-boon-dark">GROW Program Overview</span>
              
@@ -724,36 +720,37 @@ const HomeDashboard: React.FC = () => {
 // --- Sub Components ---
 
 const MetricCard = ({ value, label, icon, subtext }: { value: string | number, label: string, icon: React.ReactNode, subtext?: string }) => (
-  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-full hover:shadow-md transition-shadow">
-      <div className="flex justify-between items-start mb-4">
-          <div className="text-3xl font-black text-gray-800 tracking-tight">{value}</div>
-          <div className="p-2.5 bg-gray-50 rounded-xl text-gray-600">{icon}</div>
-      </div>
-      <div>
-          <div className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</div>
-          {subtext && <div className="text-[10px] text-gray-400 font-medium mt-1">{subtext}</div>}
-      </div>
-  </div>
-);
-
-const ThemeBar = ({ label, count, total, color }: { label: string, count: number, total: number, color: string }) => (
-    <div>
-        <div className="flex justify-between text-xs font-bold mb-1.5">
-            <span className="text-gray-700">{label}</span>
-            <span className="text-gray-400">{Math.round((count/total)*100)}%</span>
+    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col justify-between">
+        <div className="flex items-center gap-3 mb-3">
+            {icon}
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-            <div className={`h-full rounded-full ${color}`} style={{ width: `${(count/total)*100}%` }}></div>
+        <div>
+           <div className="text-3xl font-black text-boon-dark">{value}</div>
+           {subtext && <div className="text-xs text-gray-400 mt-1">{subtext}</div>}
         </div>
     </div>
 );
 
-const BaselineMetric = ({ label, value }: { label: string, value: number }) => (
-    <div className="flex flex-col items-center gap-1">
-        <div className="w-10 h-10 rounded-full bg-gray-50 border border-gray-200 flex items-center justify-center font-bold text-gray-700 text-xs shadow-sm">
-            {value.toFixed(1)}
+const ThemeBar = ({ label, count, total, color }: { label: string, count: number, total: number, color: string }) => {
+    const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+    return (
+        <div>
+            <div className="flex justify-between text-sm font-bold mb-1">
+                <span className="text-gray-700">{label}</span>
+                <span className="text-gray-900">{pct}%</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }}></div>
+            </div>
         </div>
-        <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tight">{label}</div>
+    );
+};
+
+const BaselineMetric = ({ label, value }: { label: string, value: number }) => (
+    <div className="bg-gray-50 border border-gray-100 rounded-lg p-2 flex flex-col items-center justify-center">
+        <span className="text-lg font-black text-gray-800">{value > 0 ? value.toFixed(1) : '-'}</span>
+        <span className="text-[10px] uppercase font-bold text-gray-400 truncate w-full">{label}</span>
     </div>
 );
 
