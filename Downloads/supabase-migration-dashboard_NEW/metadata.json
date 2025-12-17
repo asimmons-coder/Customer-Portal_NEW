@@ -1,5 +1,0 @@
-{
-  "name": "Supabase Migration Dashboard",
-  "description": "A session tracking dashboard migrated from Google Sheets to Supabase, featuring employee rosters and session analytics.",
-  "requestFramePermissions": []
-}
