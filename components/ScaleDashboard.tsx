@@ -23,8 +23,60 @@ import {
   BarChart3,
   Info,
   Clock,
-  LayoutDashboard
+  LayoutDashboard,
+  Briefcase
 } from 'lucide-react';
+
+// Role categorization helper
+const categorizeRole = (jobTitle: string | undefined | null): string => {
+  if (!jobTitle) return 'Unknown';
+  const title = jobTitle.toLowerCase();
+  
+  // Executive level
+  if (title.includes('chief') || title.includes('ceo') || title.includes('cfo') || 
+      title.includes('coo') || title.includes('cto') || title.includes('president') ||
+      title.includes('vp') || title.includes('vice president')) {
+    return 'Executive';
+  }
+  
+  // Director level
+  if (title.includes('director')) {
+    return 'Director';
+  }
+  
+  // Manager level
+  if (title.includes('manager') || title.includes('supervisor') || title.includes('lead') ||
+      title.includes('head of')) {
+    return 'Manager';
+  }
+  
+  // Senior IC
+  if (title.includes('senior') || title.includes('sr.') || title.includes('principal')) {
+    return 'Senior';
+  }
+  
+  // Junior/Entry level
+  if (title.includes('junior') || title.includes('jr.') || title.includes('assistant') ||
+      title.includes('associate') || title.includes('coordinator') || title.includes('entry')) {
+    return 'Entry-Level';
+  }
+  
+  // Default to IC (Individual Contributor)
+  return 'Individual Contributor';
+};
+
+// Role colors for the chart
+const ROLE_COLORS: Record<string, string> = {
+  'Executive': '#6366F1',      // Indigo
+  'Director': '#8B5CF6',       // Purple
+  'Manager': '#EC4899',        // Pink
+  'Senior': '#F59E0B',         // Amber
+  'Individual Contributor': '#10B981', // Green
+  'Entry-Level': '#06B6D4',    // Cyan
+  'Unknown': '#9CA3AF'         // Gray
+};
+
+const ROLE_ORDER = ['Executive', 'Director', 'Manager', 'Senior', 'Individual Contributor', 'Entry-Level', 'Unknown'];
 
 const ScaleDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -76,10 +128,16 @@ const ScaleDashboard: React.FC = () => {
       e.status !== 'Inactive' && normalize(e.company_name || e.company).includes(currentAccount)
     );
 
+    // Build employee lookup by name for role matching
+    const employeeLookup = new Map<string, Employee>();
+    eligibleEmployees.forEach(e => {
+      const name = normalize(e.employee_name || e.full_name || e.name || `${e.first_name} ${e.last_name}`);
+      if (name) employeeLookup.set(name, e);
+    });
+
     // 2. Completed Sessions - use account_name directly from session data
     const completedSessions = sessions.filter(s => {
       const status = normalize(s.status || '');
-      // Use account_name directly from session, fallback to employee_manager
       const account = normalize(
         (s as any).account_name || 
         s.employee_manager?.company_name || 
@@ -165,8 +223,17 @@ const ScaleDashboard: React.FC = () => {
       wellbeing: parseThemes(currentPeriodSessions, 'mental_well_being')
     };
 
+    // Sessions by Role Analysis
+    const sessionsByRole: Record<string, number> = {};
+    currentPeriodSessions.forEach(s => {
+      const empName = normalize(s.employee_name || '');
+      const employee = employeeLookup.get(empName);
+      const jobTitle = employee?.job_title || employee?.company_role;
+      const role = categorizeRole(jobTitle);
+      sessionsByRole[role] = (sessionsByRole[role] || 0) + 1;
+    });
+
     // Feedback
-    // Filter surveys by matching emails from the current account's eligible roster
     const eligibleEmails = new Set(eligibleEmployees.map(e => normalize(e.company_email || e.email)).filter(Boolean));
     const cohortSurveys = surveys.filter(s => s.email && eligibleEmails.has(normalize(s.email)));
     
@@ -191,6 +258,7 @@ const ScaleDashboard: React.FC = () => {
       mauPrior,
       activeWithTwoPlus,
       themes,
+      sessionsByRole,
       nps,
       avgSat,
       surveyCount: cohortSurveys.length
@@ -302,6 +370,35 @@ const ScaleDashboard: React.FC = () => {
             </div>
           </div>
           
+          {/* Sessions by Role Chart */}
+          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-boon-purple" /> Sessions by Role Level
+               </h3>
+               <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                 {windowDays === 365 ? '1 Year' : `${windowDays} Days`}
+               </span>
+            </div>
+            
+            <RoleStackedBar data={m.sessionsByRole} total={m.currentSessionsCount} />
+            
+            {/* Legend */}
+            <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-gray-100">
+              {ROLE_ORDER.filter(role => m.sessionsByRole[role] > 0).map(role => (
+                <div key={role} className="flex items-center gap-2">
+                  <div 
+                    className="w-3 h-3 rounded-sm" 
+                    style={{ backgroundColor: ROLE_COLORS[role] }}
+                  />
+                  <span className="text-xs font-medium text-gray-600">
+                    {role} ({m.sessionsByRole[role] || 0})
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
           <div className="bg-gray-50 border border-dashed border-gray-200 p-4 rounded-xl flex items-start gap-3">
              <Info className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
              <p className="text-xs text-gray-500 leading-relaxed font-medium">
@@ -406,5 +503,71 @@ const ThemeRow = ({ label, pct, sub, color }: any) => (
     </div>
   </div>
 );
+
+const RoleStackedBar = ({ data, total }: { data: Record<string, number>, total: number }) => {
+  if (total === 0) {
+    return (
+      <div className="text-center py-8 text-gray-400 text-sm">
+        No sessions in this period
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Stacked horizontal bar */}
+      <div className="h-12 flex rounded-xl overflow-hidden">
+        {ROLE_ORDER.map(role => {
+          const count = data[role] || 0;
+          const pct = (count / total) * 100;
+          if (pct === 0) return null;
+          
+          return (
+            <div
+              key={role}
+              className="h-full flex items-center justify-center transition-all duration-500 hover:opacity-90 group relative"
+              style={{ 
+                width: `${pct}%`, 
+                backgroundColor: ROLE_COLORS[role],
+                minWidth: pct > 0 ? '20px' : '0'
+              }}
+              title={`${role}: ${count} sessions (${pct.toFixed(1)}%)`}
+            >
+              {pct >= 8 && (
+                <span className="text-white text-xs font-bold">
+                  {pct.toFixed(0)}%
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      
+      {/* Role breakdown list */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
+        {ROLE_ORDER.filter(role => (data[role] || 0) > 0).map(role => {
+          const count = data[role] || 0;
+          const pct = (count / total) * 100;
+          
+          return (
+            <div key={role} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-2 h-8 rounded-full" 
+                  style={{ backgroundColor: ROLE_COLORS[role] }}
+                />
+                <div>
+                  <div className="text-xs font-bold text-gray-700">{role}</div>
+                  <div className="text-[10px] text-gray-400">{pct.toFixed(1)}%</div>
+                </div>
+              </div>
+              <div className="text-lg font-black text-gray-800">{count}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
 
 export default ScaleDashboard;
