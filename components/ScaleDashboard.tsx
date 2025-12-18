@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -29,7 +28,7 @@ import {
 
 const ScaleDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const windowDays = parseInt(searchParams.get('windowDays') || '90', 10);
+  const windowDays = parseInt(searchParams.get('windowDays') || '365', 10);
   
   const [sessions, setSessions] = useState<SessionWithEmployee[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
@@ -77,11 +76,16 @@ const ScaleDashboard: React.FC = () => {
       e.status !== 'Inactive' && normalize(e.company_name || e.company).includes(currentAccount)
     );
 
-    // 2. Completed Sessions in the current account
+    // 2. Completed Sessions - use account_name directly from session data
     const completedSessions = sessions.filter(s => {
       const status = normalize(s.status || '');
-      // Fix: Use employee_manager company info as account_name does not exist on SessionWithEmployee
-      const account = normalize(s.employee_manager?.company_name || s.employee_manager?.company || '');
+      // Use account_name directly from session, fallback to employee_manager
+      const account = normalize(
+        (s as any).account_name || 
+        s.employee_manager?.company_name || 
+        s.employee_manager?.company || 
+        ''
+      );
       return status === 'completed' && account.includes(currentAccount);
     });
 
@@ -162,7 +166,7 @@ const ScaleDashboard: React.FC = () => {
     };
 
     // Feedback
-    // Fix: Filter surveys by matching emails from the current account's eligible roster since 'account' does not exist on SurveyResponse
+    // Filter surveys by matching emails from the current account's eligible roster
     const eligibleEmails = new Set(eligibleEmployees.map(e => normalize(e.company_email || e.email)).filter(Boolean));
     const cohortSurveys = surveys.filter(s => s.email && eligibleEmails.has(normalize(s.email)));
     
@@ -225,13 +229,13 @@ const ScaleDashboard: React.FC = () => {
         </div>
         
         <div className="bg-gray-50 p-1 rounded-xl flex items-center border border-gray-100">
-          {[30, 90, 180].map(d => (
+          {[30, 90, 180, 365].map((d, idx, arr) => (
             <button
               key={d}
               onClick={() => setWindow(d)}
               className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${windowDays === d ? 'bg-boon-dark text-white shadow-sm' : 'text-gray-400 hover:text-boon-dark'}`}
             >
-              {d} Days
+              {d === 365 ? '1 Year' : `${d} Days`}
             </button>
           ))}
         </div>
@@ -301,7 +305,7 @@ const ScaleDashboard: React.FC = () => {
           <div className="bg-gray-50 border border-dashed border-gray-200 p-4 rounded-xl flex items-start gap-3">
              <Info className="w-5 h-5 text-gray-400 shrink-0 mt-0.5" />
              <p className="text-xs text-gray-500 leading-relaxed font-medium">
-               <strong>Utilization Note:</strong> {m.currentSessionsCount} sessions were completed in this {windowDays}-day window. 
+               <strong>Utilization Note:</strong> {m.currentSessionsCount} sessions were completed in this {windowDays === 365 ? '1-year' : `${windowDays}-day`} window. 
                This reflects employee-led demand for growth resources rather than a mandatory curriculum.
              </p>
           </div>
