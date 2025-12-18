@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getWelcomeSurveyData } from '../lib/dataFetcher';
+import { getWelcomeSurveyScaleData } from '../lib/dataFetcher';
 import { WelcomeSurveyEntry } from '../types';
 import ExecutiveSignals from './ExecutiveSignals';
 import { 
@@ -45,7 +45,7 @@ const BaselineDashboard: React.FC = () => {
     const fetch = async () => {
       try {
         setLoading(true);
-        const result = await getWelcomeSurveyData();
+        const result = await getWelcomeSurveyScaleData();
         console.log("Raw Baseline Data:", result); // Debug log
         setData(result);
       } catch (err: any) {
@@ -161,7 +161,7 @@ const BaselineDashboard: React.FC = () => {
         <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
         <h2 className="text-xl font-bold text-gray-800">Unable to load baseline data</h2>
         <p className="text-gray-500 mt-2">{error}</p>
-        <p className="text-xs text-gray-400 mt-4">Ensure table 'welcome_survey_baseline' exists.</p>
+        <p className="text-xs text-gray-400 mt-4">Ensure table 'welcome_survey_scale' exists.</p>
       </div>
     );
   }
