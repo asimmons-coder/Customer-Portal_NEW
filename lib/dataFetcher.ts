@@ -91,7 +91,7 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
 };
 
 /**
- * Fetches welcome survey baseline data.
+ * Fetches welcome survey baseline data (for GROW programs).
  */
 export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
   const { data, error } = await supabase
@@ -100,6 +100,41 @@ export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
 
   if (error) {
     console.error('Error fetching welcome survey data:', error);
+    return [];
+  }
+
+  return data as WelcomeSurveyEntry[];
+};
+
+/**
+ * Fetches welcome survey data for Scale programs.
+ */
+export const getWelcomeSurveyScaleData = async (): Promise<WelcomeSurveyEntry[]> => {
+  const { data, error } = await supabase
+    .from('welcome_survey_scale')
+    .select('*');
+
+  if (error) {
+    console.error('Error fetching Scale welcome survey data:', error);
+    return [];
+  }
+
+  return data as WelcomeSurveyEntry[];
+};
+
+/**
+ * Fetches welcome survey data based on program type.
+ * @param programType - 'scale' or 'grow' (defaults to 'grow' for backwards compatibility)
+ */
+export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow' = 'grow'): Promise<WelcomeSurveyEntry[]> => {
+  const tableName = programType === 'scale' ? 'welcome_survey_scale' : 'welcome_survey_baseline';
+  
+  const { data, error } = await supabase
+    .from(tableName)
+    .select('*');
+
+  if (error) {
+    console.error(`Error fetching ${programType} welcome survey data:`, error);
     return [];
   }
 
