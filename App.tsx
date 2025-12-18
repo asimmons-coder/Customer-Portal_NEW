@@ -11,6 +11,7 @@ import EmployeeDashboard from './components/EmployeeDashboard';
 import ImpactDashboard from './components/ImpactDashboard';
 import ThemesDashboard from './components/ThemesDashboard';
 import BaselineDashboard from './components/BaselineDashboard';
+import ScaleDashboard from './components/ScaleDashboard';
 
 import { 
   Users, 
@@ -23,14 +24,14 @@ import {
   Calendar,
   Home,
   TrendingUp,
-  ClipboardList
+  ClipboardList,
+  Zap
 } from 'lucide-react';
 
 // --- Program Display Name Mapping ---
 const programDisplayNames: Record<string, string> = {
   'CP-0028': 'GROW - Cohort 1',
   'CP-0117': 'GROW - Cohort 2',
-  // Add more program mappings as needed
 };
 
 const getDisplayName = (program: string): string => {
@@ -39,7 +40,7 @@ const getDisplayName = (program: string): string => {
 
 // --- Main Portal Layout with Dynamic Program Tabs ---
 const MainPortalLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline' | 'scale'>('dashboard');
   
   // New Filter State
   const [filterType, setFilterType] = useState<'program' | 'cohort' | 'all'>('all');
@@ -52,7 +53,6 @@ const MainPortalLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
-  // Fetch programs for the current company
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
@@ -60,7 +60,6 @@ const MainPortalLayout: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
-        // FIXED: Fetch program_name instead of program
         const { data, error } = await supabase
           .from('session_tracking')
           .select('program_name');
@@ -87,11 +86,9 @@ const MainPortalLayout: React.FC = () => {
     navigate('/login'); 
   };
 
-  // Parse company name for display (remove program suffix if present)
   const displayCompanyName = companyName.split(' - ')[0] || companyName;
 
-  // Helper to handle navigation and close mobile menu
-  const handleNavClick = (tab: 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline') => {
+  const handleNavClick = (tab: 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline' | 'scale') => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
     navigate(tab === 'dashboard' ? '/' : `/${tab}`);
@@ -129,19 +126,17 @@ const MainPortalLayout: React.FC = () => {
         <button 
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)} 
           className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg active:bg-gray-200 transition touch-manipulation"
-          aria-label="Toggle menu"
         >
            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </div>
 
-      {/* Sidebar - Responsive */}
+      {/* Sidebar */}
       <aside className={`
         fixed inset-y-0 left-0 z-40 w-72 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 ease-in-out
         lg:static lg:translate-x-0 lg:h-screen lg:sticky lg:top-0
         ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
       `}>
-        {/* Desktop Header */}
         <div className="hidden lg:block p-6 border-b border-gray-100">
           <div className="flex items-center justify-between gap-4">
             <img 
@@ -149,20 +144,10 @@ const MainPortalLayout: React.FC = () => {
               alt="Boon Logo" 
               className="h-5 w-auto object-contain"
             />
-            {displayCompanyName && (
-              <>
-                <div className="h-8 w-px bg-gray-200"></div>
-                <div className="text-xs font-bold text-gray-500 uppercase tracking-wide truncate">
-                  {displayCompanyName}
-                </div>
-              </>
-            )}
           </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1 mt-2 overflow-y-auto custom-scrollbar">
-          
-          {/* Dashboard (Home) */}
           <NavItem 
             active={activeTab === 'dashboard'} 
             onClick={() => handleNavClick('dashboard')}
@@ -170,7 +155,13 @@ const MainPortalLayout: React.FC = () => {
             label="Dashboard" 
           />
 
-          {/* Sessions - Expandable */}
+          <NavItem 
+            active={activeTab === 'scale'} 
+            onClick={() => handleNavClick('scale')}
+            icon={<Zap size={20} />} 
+            label="SCALE Benefit" 
+          />
+
           <div>
             <button
               onClick={() => { toggleMenu('sessions'); handleNavClick('sessions'); }}
@@ -189,7 +180,6 @@ const MainPortalLayout: React.FC = () => {
 
             <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedMenu === 'sessions' ? 'max-h-[500px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
               <div className="pl-4 space-y-1 border-l-2 border-gray-100 ml-5 py-1">
-                {/* All Sessions Link */}
                 <button
                     onClick={() => handleSessionFilterClick('all', '')}
                     className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm transition-all duration-200
@@ -198,10 +188,8 @@ const MainPortalLayout: React.FC = () => {
                         : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
                       }`}
                   >
-                    <span className="truncate text-left">All Sessions</span>
+                    <span>All Sessions</span>
                 </button>
-
-                {/* Dynamic Program List with Display Names */}
                 {programs.map(program => (
                   <button
                     key={program}
@@ -212,7 +200,7 @@ const MainPortalLayout: React.FC = () => {
                         : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
                       }`}
                   >
-                    <span className="truncate text-left">{getDisplayName(program)}</span>
+                    <span className="truncate">{getDisplayName(program)}</span>
                   </button>
                 ))}
               </div>
@@ -223,7 +211,7 @@ const MainPortalLayout: React.FC = () => {
             active={activeTab === 'themes'} 
             onClick={() => handleNavClick('themes')}
             icon={<Lightbulb size={20} />} 
-            label="Coaching Themes" 
+            label="Themes" 
           />
 
           <NavItem 
@@ -268,18 +256,17 @@ const MainPortalLayout: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
           <Routes>
             <Route path="/" element={<HomeDashboard />} />
+            <Route path="/scale" element={<ScaleDashboard />} />
             <Route path="/sessions" element={<SessionDashboard filterType={filterType} filterValue={filterValue} />} />
             <Route path="/employees" element={<EmployeeDashboard />} />
             <Route path="/impact" element={<ImpactDashboard />} />
             <Route path="/themes" element={<ThemesDashboard />} />
             <Route path="/baseline" element={<BaselineDashboard />} />
-            {/* Fallback to Dashboard */}
             <Route path="*" element={<HomeDashboard />} />
           </Routes>
         </div>
       </main>
 
-      {/* Mobile Overlay */}
       {mobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black/20 z-30 lg:hidden backdrop-blur-sm"
@@ -290,13 +277,12 @@ const MainPortalLayout: React.FC = () => {
   );
 };
 
-// --- NavItem Component ---
 const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNode, label: string, active?: boolean, onClick?: () => void }) => (
   <button 
     onClick={onClick}
     className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 font-semibold
       ${active 
-        ? 'bg-boon-blue text-white shadow-md shadow-boon-blue/20' 
+        ? 'bg-boon-blue text-white shadow-md' 
         : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark'
       }`}
   >
@@ -305,8 +291,6 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
   </button>
 );
 
-
-// --- Root App Component with Security Routes ---
 const App: React.FC = () => {
   return (
     <Router>
