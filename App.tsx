@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 import LoginPage from './components/LoginPage'; 
 import ProtectedRoute from './components/ProtectedRoute'; 
@@ -40,7 +39,11 @@ const getDisplayName = (program: string): string => {
 
 // --- Main Portal Layout with Dynamic Program Tabs ---
 const MainPortalLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline' | 'scale'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline'>('dashboard');
+  
+  // Program Type State
+  const [programType, setProgramType] = useState<'GROW' | 'Scale' | 'Exec' | null>(null);
+  const [programTypeLoading, setProgramTypeLoading] = useState(true);
   
   // New Filter State
   const [filterType, setFilterType] = useState<'program' | 'cohort' | 'all'>('all');
@@ -60,6 +63,26 @@ const MainPortalLayout: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
+        // Fetch program type from program_config
+        const { data: configData, error: configError } = await supabase
+          .from('program_config')
+          .select('program_type')
+          .ilike('account_name', `%${company.split(' - ')[0]}%`)
+          .limit(1)
+          .single();
+
+        if (configData?.program_type) {
+          setProgramType(configData.program_type as 'GROW' | 'Scale' | 'Exec');
+        } else {
+          // Fallback: check if company name contains Scale
+          if (company.toUpperCase().includes('SCALE')) {
+            setProgramType('Scale');
+          } else {
+            setProgramType('GROW');
+          }
+        }
+        setProgramTypeLoading(false);
+
         const { data, error } = await supabase
           .from('session_tracking')
           .select('program_name');
@@ -75,6 +98,7 @@ const MainPortalLayout: React.FC = () => {
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);
+        setProgramTypeLoading(false);
       }
     };
 
@@ -88,7 +112,7 @@ const MainPortalLayout: React.FC = () => {
 
   const displayCompanyName = companyName.split(' - ')[0] || companyName;
 
-  const handleNavClick = (tab: 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline' | 'scale') => {
+  const handleNavClick = (tab: 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline') => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
     navigate(tab === 'dashboard' ? '/' : `/${tab}`);
@@ -105,6 +129,21 @@ const MainPortalLayout: React.FC = () => {
   const toggleMenu = (menu: string) => {
     setExpandedMenu(expandedMenu === menu ? null : menu);
   };
+
+  // Show loading while determining program type
+  if (programTypeLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-boon-bg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-boon-blue mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Scale-specific navigation
+  const isScale = programType === 'Scale';
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-boon-bg font-sans text-boon-dark">
@@ -144,68 +183,68 @@ const MainPortalLayout: React.FC = () => {
               alt="Boon Logo" 
               className="h-5 w-auto object-contain"
             />
+            {isScale && (
+              <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">SCALE</span>
+            )}
           </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-1 mt-2 overflow-y-auto custom-scrollbar">
+          {/* Dashboard - shows Scale or GROW based on program type */}
           <NavItem 
             active={activeTab === 'dashboard'} 
             onClick={() => handleNavClick('dashboard')}
-            icon={<Home size={20} />} 
-            label="Dashboard" 
+            icon={isScale ? <Zap size={20} /> : <Home size={20} />} 
+            label={isScale ? 'Scale Benefit' : 'Dashboard'} 
           />
 
-          <NavItem 
-            active={activeTab === 'scale'} 
-            onClick={() => handleNavClick('scale')}
-            icon={<Zap size={20} />} 
-            label="SCALE Benefit" 
-          />
+          {/* Sessions - only show for GROW */}
+          {!isScale && (
+            <div>
+              <button
+                onClick={() => { toggleMenu('sessions'); handleNavClick('sessions'); }}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 font-semibold group
+                  ${activeTab === 'sessions' ? 'bg-boon-blue/5 text-boon-blue' : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark'}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Calendar size={20} className={activeTab === 'sessions' ? 'text-boon-blue' : 'group-hover:text-boon-blue transition-colors'} />
+                  <span>Sessions</span>
+                </div>
+                <ChevronDown 
+                  size={16} 
+                  className={`transition-transform duration-200 ${expandedMenu === 'sessions' ? 'rotate-180 text-boon-blue' : 'text-gray-400'}`}
+                />
+              </button>
 
-          <div>
-            <button
-              onClick={() => { toggleMenu('sessions'); handleNavClick('sessions'); }}
-              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 font-semibold group
-                ${activeTab === 'sessions' ? 'bg-boon-blue/5 text-boon-blue' : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark'}`}
-            >
-              <div className="flex items-center gap-3">
-                <Calendar size={20} className={activeTab === 'sessions' ? 'text-boon-blue' : 'group-hover:text-boon-blue transition-colors'} />
-                <span>Sessions</span>
-              </div>
-              <ChevronDown 
-                size={16} 
-                className={`transition-transform duration-200 ${expandedMenu === 'sessions' ? 'rotate-180 text-boon-blue' : 'text-gray-400'}`}
-              />
-            </button>
-
-            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedMenu === 'sessions' ? 'max-h-[500px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-              <div className="pl-4 space-y-1 border-l-2 border-gray-100 ml-5 py-1">
-                <button
-                    onClick={() => handleSessionFilterClick('all', '')}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm transition-all duration-200
-                      ${activeTab === 'sessions' && filterType === 'all'
-                        ? 'bg-boon-blue/10 text-boon-blue font-bold' 
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
-                      }`}
-                  >
-                    <span>All Sessions</span>
-                </button>
-                {programs.map(program => (
+              <div className={`overflow-hidden transition-all duration-300 ease-in-out ${expandedMenu === 'sessions' ? 'max-h-[500px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                <div className="pl-4 space-y-1 border-l-2 border-gray-100 ml-5 py-1">
                   <button
-                    key={program}
-                    onClick={() => handleSessionFilterClick('program', program)}
-                    className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm transition-all duration-200
-                      ${activeTab === 'sessions' && filterType === 'program' && filterValue === program
-                        ? 'bg-boon-blue/10 text-boon-blue font-bold' 
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
-                      }`}
-                  >
-                    <span className="truncate">{getDisplayName(program)}</span>
+                      onClick={() => handleSessionFilterClick('all', '')}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm transition-all duration-200
+                        ${activeTab === 'sessions' && filterType === 'all'
+                          ? 'bg-boon-blue/10 text-boon-blue font-bold' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
+                        }`}
+                    >
+                      <span>All Sessions</span>
                   </button>
-                ))}
+                  {programs.map(program => (
+                    <button
+                      key={program}
+                      onClick={() => handleSessionFilterClick('program', program)}
+                      className={`w-full flex items-center justify-between px-3 py-3 rounded-lg text-sm transition-all duration-200
+                        ${activeTab === 'sessions' && filterType === 'program' && filterValue === program
+                          ? 'bg-boon-blue/10 text-boon-blue font-bold' 
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-boon-dark font-medium'
+                        }`}
+                    >
+                      <span className="truncate">{getDisplayName(program)}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <NavItem 
             active={activeTab === 'themes'} 
@@ -214,14 +253,17 @@ const MainPortalLayout: React.FC = () => {
             label="Themes" 
           />
 
-          <NavItem 
-            active={activeTab === 'impact'} 
-            onClick={() => handleNavClick('impact')}
-            icon={<TrendingUp size={20} />} 
-            label="Impact" 
-          />
+          {/* Impact - only show for GROW */}
+          {!isScale && (
+            <NavItem 
+              active={activeTab === 'impact'} 
+              onClick={() => handleNavClick('impact')}
+              icon={<TrendingUp size={20} />} 
+              label="Impact" 
+            />
+          )}
 
-           <NavItem 
+          <NavItem 
             active={activeTab === 'baseline'} 
             onClick={() => handleNavClick('baseline')}
             icon={<ClipboardList size={20} />} 
@@ -255,14 +297,16 @@ const MainPortalLayout: React.FC = () => {
       <main className="flex-1 overflow-x-hidden h-[calc(100vh-60px)] lg:h-screen relative z-0 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
           <Routes>
-            <Route path="/" element={<HomeDashboard />} />
-            <Route path="/scale" element={<ScaleDashboard />} />
+            {/* Dashboard route shows Scale or GROW based on program type */}
+            <Route path="/" element={isScale ? <ScaleDashboard /> : <HomeDashboard />} />
             <Route path="/sessions" element={<SessionDashboard filterType={filterType} filterValue={filterValue} />} />
             <Route path="/employees" element={<EmployeeDashboard />} />
             <Route path="/impact" element={<ImpactDashboard />} />
             <Route path="/themes" element={<ThemesDashboard />} />
             <Route path="/baseline" element={<BaselineDashboard />} />
-            <Route path="*" element={<HomeDashboard />} />
+            {/* Redirect /scale to / for Scale users, show Scale for GROW users who manually navigate */}
+            <Route path="/scale" element={isScale ? <Navigate to="/" replace /> : <ScaleDashboard />} />
+            <Route path="*" element={isScale ? <ScaleDashboard /> : <HomeDashboard />} />
           </Routes>
         </div>
       </main>
