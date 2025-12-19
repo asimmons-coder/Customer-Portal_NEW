@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
@@ -10,6 +11,7 @@ import EmployeeDashboard from './components/EmployeeDashboard';
 import ImpactDashboard from './components/ImpactDashboard';
 import ThemesDashboard from './components/ThemesDashboard';
 import BaselineDashboard from './components/BaselineDashboard';
+import ScaleBaselineDashboard from './components/ScaleBaselineDashboard';
 import ScaleDashboard from './components/ScaleDashboard';
 
 import { 
@@ -303,7 +305,7 @@ const MainPortalLayout: React.FC = () => {
             <Route path="/employees" element={<EmployeeDashboard />} />
             <Route path="/impact" element={<ImpactDashboard />} />
             <Route path="/themes" element={<ThemesDashboard />} />
-            <Route path="/baseline" element={<BaselineDashboard />} />
+            <Route path="/baseline" element={isScale ? <ScaleBaselineDashboard /> : <BaselineDashboard />} />
             {/* Redirect /scale to / for Scale users, show Scale for GROW users who manually navigate */}
             <Route path="/scale" element={isScale ? <Navigate to="/" replace /> : <ScaleDashboard />} />
             <Route path="*" element={isScale ? <ScaleDashboard /> : <HomeDashboard />} />

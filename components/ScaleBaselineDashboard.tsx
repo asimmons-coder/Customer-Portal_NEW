@@ -1,0 +1,392 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { supabase } from '../lib/supabaseClient';
+import { getWelcomeSurveyScaleData } from '../lib/dataFetcher';
+import { 
+  Users, 
+  Briefcase, 
+  Smile, 
+  TrendingUp,
+  Target,
+  Clock,
+  Calendar,
+  Award,
+  Heart
+} from 'lucide-react';
+
+interface ScaleWelcomeSurvey {
+  id: number;
+  account: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  age_range: string;
+  gender: string;
+  role: string;
+  tenure: string;
+  previous_coaching: number;
+  satisfaction: number;
+  productivity: number;
+  work_life_balance: number;
+  focus_work_relationships: boolean;
+  focus_work_life_balance: boolean;
+  focus_leadership_development: boolean;
+  focus_realizing_potential: boolean;
+  focus_work_performance: boolean;
+  focus_work_stress: boolean;
+  focus_new_environment: boolean;
+  focus_adapting_to_change: boolean;
+  focus_dealing_with_uncertainty: boolean;
+  focus_bouncing_back: boolean;
+  focus_relationship_with_self: boolean;
+  focus_inner_confidence: boolean;
+  focus_positive_habits: boolean;
+  focus_personal_accountability: boolean;
+  focus_professional_development: boolean;
+  focus_persevering_through_change: boolean;
+  focus_relationships_self_others: boolean;
+  focus_coping_stress_anxiety: boolean;
+}
+
+const FOCUS_AREA_LABELS: Record<string, string> = {
+  focus_leadership_development: 'Leadership Development',
+  focus_professional_development: 'Professional Development',
+  focus_work_performance: 'Work Performance',
+  focus_work_stress: 'Managing Work Stress',
+  focus_coping_stress_anxiety: 'Coping with Stress & Anxiety',
+  focus_work_life_balance: 'Work-Life Balance',
+  focus_work_relationships: 'Work Relationships',
+  focus_relationships_self_others: 'Relationships (Self & Others)',
+  focus_realizing_potential: 'Realizing Potential',
+  focus_inner_confidence: 'Inner Confidence',
+  focus_positive_habits: 'Building Positive Habits',
+  focus_personal_accountability: 'Personal Accountability',
+  focus_adapting_to_change: 'Adapting to Change',
+  focus_persevering_through_change: 'Persevering Through Change',
+  focus_dealing_with_uncertainty: 'Dealing with Uncertainty',
+  focus_bouncing_back: 'Bouncing Back / Resilience',
+  focus_new_environment: 'New Environment',
+  focus_relationship_with_self: 'Relationship with Self',
+};
+
+const ScaleBaselineDashboard: React.FC = () => {
+  const [surveyData, setSurveyData] = useState<ScaleWelcomeSurvey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [companyName, setCompanyName] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
+        setCompanyName(company);
+
+        const data = await getWelcomeSurveyScaleData();
+        setSurveyData(data as ScaleWelcomeSurvey[]);
+      } catch (err) {
+        console.error("Scale Baseline Error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const metrics = useMemo(() => {
+    if (loading || surveyData.length === 0) return null;
+
+    const total = surveyData.length;
+
+    // Role distribution
+    const roleCounts: Record<string, number> = {};
+    surveyData.forEach(s => {
+      const role = s.role || 'Unknown';
+      roleCounts[role] = (roleCounts[role] || 0) + 1;
+    });
+    const mostCommonRole = Object.entries(roleCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+
+    // Wellbeing averages
+    const avgSatisfaction = surveyData.reduce((sum, s) => sum + (s.satisfaction || 0), 0) / total;
+    const avgProductivity = surveyData.reduce((sum, s) => sum + (s.productivity || 0), 0) / total;
+    const avgWorkLifeBalance = surveyData.reduce((sum, s) => sum + (s.work_life_balance || 0), 0) / total;
+
+    // Focus areas - count how many selected each
+    const focusAreaCounts: Record<string, number> = {};
+    Object.keys(FOCUS_AREA_LABELS).forEach(key => {
+      focusAreaCounts[key] = surveyData.filter(s => (s as any)[key] === true).length;
+    });
+
+    // Sort focus areas by count
+    const sortedFocusAreas = Object.entries(focusAreaCounts)
+      .map(([key, count]) => ({
+        key,
+        label: FOCUS_AREA_LABELS[key],
+        count,
+        pct: (count / total) * 100
+      }))
+      .sort((a, b) => b.count - a.count);
+
+    // Age distribution
+    const ageCounts: Record<string, number> = {};
+    surveyData.forEach(s => {
+      const age = s.age_range || 'Unknown';
+      ageCounts[age] = (ageCounts[age] || 0) + 1;
+    });
+
+    // Tenure distribution
+    const tenureCounts: Record<string, number> = {};
+    surveyData.forEach(s => {
+      const tenure = s.tenure || 'Unknown';
+      tenureCounts[tenure] = (tenureCounts[tenure] || 0) + 1;
+    });
+
+    // Previous coaching
+    const previousCoachingCounts: Record<string, number> = { 'Yes': 0, 'No': 0 };
+    surveyData.forEach(s => {
+      if (s.previous_coaching === 1) {
+        previousCoachingCounts['Yes']++;
+      } else {
+        previousCoachingCounts['No']++;
+      }
+    });
+
+    return {
+      total,
+      mostCommonRole,
+      avgSatisfaction,
+      avgProductivity,
+      avgWorkLifeBalance,
+      sortedFocusAreas,
+      ageCounts,
+      tenureCounts,
+      previousCoachingCounts,
+      roleCounts
+    };
+  }, [surveyData, loading]);
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-pulse">
+        <div className="h-8 bg-gray-200 rounded w-64"></div>
+        <div className="grid grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-32 bg-gray-200 rounded-2xl"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (!metrics || metrics.total === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">No baseline survey data found for this account.</p>
+      </div>
+    );
+  }
+
+  const m = metrics;
+
+  return (
+    <div className="space-y-8 pb-12">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-black text-boon-dark flex items-center gap-3">
+          COHORT BASELINE <Target className="w-6 h-6 text-boon-purple" />
+        </h1>
+        <p className="text-gray-500 text-sm mt-1">Initial welcome survey data analysis.</p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <SummaryCard
+          icon={<Users className="w-5 h-5 text-boon-blue" />}
+          label="PARTICIPANTS"
+          value={m.total}
+        />
+        <SummaryCard
+          icon={<Briefcase className="w-5 h-5 text-boon-purple" />}
+          label="MOST COMMON ROLE"
+          value={m.mostCommonRole}
+          isText
+        />
+        <SummaryCard
+          icon={<Smile className="w-5 h-5 text-boon-green" />}
+          label="AVG SATISFACTION"
+          value={m.avgSatisfaction.toFixed(1)}
+          suffix="/ 10"
+        />
+        <SummaryCard
+          icon={<TrendingUp className="w-5 h-5 text-boon-coral" />}
+          label="AVG PRODUCTIVITY"
+          value={m.avgProductivity.toFixed(1)}
+          suffix="/ 10"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Focus Areas - Main Content */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <Target className="w-4 h-4 text-boon-purple" /> Coaching Focus Areas
+            </h3>
+            <p className="text-sm text-gray-500 mb-6">What participants want to work on with their coach</p>
+            
+            <div className="space-y-4">
+              {m.sortedFocusAreas.filter(f => f.count > 0).map((focus, idx) => (
+                <div key={focus.key}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-medium text-gray-700">{focus.label}</span>
+                    <span className="text-sm font-bold text-gray-900">{focus.count} ({focus.pct.toFixed(0)}%)</span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5">
+                    <div
+                      className="h-2.5 rounded-full transition-all duration-500"
+                      style={{
+                        width: `${focus.pct}%`,
+                        backgroundColor: idx < 3 ? '#8B5CF6' : idx < 6 ? '#EC4899' : '#10B981'
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {m.sortedFocusAreas.filter(f => f.count > 0).length === 0 && (
+                <p className="text-gray-400 text-sm italic">No focus areas selected</p>
+              )}
+            </div>
+          </div>
+
+          {/* Wellbeing Baseline */}
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+              <Heart className="w-4 h-4 text-boon-green" /> Wellbeing Baseline (1-10)
+            </h3>
+            
+            <div className="grid grid-cols-3 gap-6">
+              <WellbeingGauge label="Satisfaction" value={m.avgSatisfaction} />
+              <WellbeingGauge label="Productivity" value={m.avgProductivity} />
+              <WellbeingGauge label="Work-Life Balance" value={m.avgWorkLifeBalance} />
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar - Demographics */}
+        <div className="space-y-6">
+          <DemographicCard
+            icon={<Calendar className="w-4 h-4 text-boon-blue" />}
+            title="AGE DISTRIBUTION"
+            data={m.ageCounts}
+            total={m.total}
+          />
+          <DemographicCard
+            icon={<Clock className="w-4 h-4 text-boon-purple" />}
+            title="TENURE"
+            data={m.tenureCounts}
+            total={m.total}
+          />
+          <DemographicCard
+            icon={<Briefcase className="w-4 h-4 text-boon-green" />}
+            title="ROLE"
+            data={m.roleCounts}
+            total={m.total}
+          />
+          <DemographicCard
+            icon={<Award className="w-4 h-4 text-boon-coral" />}
+            title="PREVIOUS COACHING"
+            data={m.previousCoachingCounts}
+            total={m.total}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Sub-components
+
+const SummaryCard = ({ icon, label, value, suffix, isText }: any) => (
+  <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+    <div className="flex items-center gap-2 mb-3">
+      <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
+      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
+    </div>
+    <div className={`${isText ? 'text-lg' : 'text-3xl'} font-black text-boon-dark`}>
+      {value}
+      {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
+    </div>
+  </div>
+);
+
+const WellbeingGauge = ({ label, value }: { label: string; value: number }) => {
+  const percentage = (value / 10) * 100;
+  const circumference = 2 * Math.PI * 40;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-24 h-24">
+        <svg className="w-24 h-24 transform -rotate-90">
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            stroke="#E5E7EB"
+            strokeWidth="8"
+            fill="none"
+          />
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            stroke="#3B82F6"
+            strokeWidth="8"
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-1000"
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-2xl font-black text-boon-dark">{value.toFixed(1)}</span>
+        </div>
+      </div>
+      <span className="text-xs font-medium text-gray-500 mt-2 text-center">{label}</span>
+    </div>
+  );
+};
+
+const DemographicCard = ({ icon, title, data, total }: any) => {
+  const sortedData = Object.entries(data)
+    .sort((a, b) => (b[1] as number) - (a[1] as number));
+
+  return (
+    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+        {icon} {title}
+      </h3>
+      <div className="space-y-3">
+        {sortedData.map(([key, count]) => {
+          const pct = ((count as number) / total) * 100;
+          return (
+            <div key={key}>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-medium text-gray-600">{key}</span>
+                <span className="text-xs text-gray-500">{count} ({pct.toFixed(0)}%)</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-1.5">
+                <div
+                  className="h-1.5 rounded-full bg-boon-coral"
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+export default ScaleBaselineDashboard;
