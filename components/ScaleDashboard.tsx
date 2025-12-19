@@ -17,12 +17,8 @@ import {
   Activity, 
   TrendingUp, 
   TrendingDown, 
-  Calendar,
-  Star,
-  ArrowRight,
   BarChart3,
   Info,
-  Clock,
   LayoutDashboard,
   Briefcase
 } from 'lucide-react';
@@ -32,48 +28,28 @@ const categorizeRole = (jobTitle: string | undefined | null): string => {
   if (!jobTitle) return 'Unknown';
   const title = jobTitle.toLowerCase();
   
-  // Executive level
   if (title.includes('chief') || title.includes('ceo') || title.includes('cfo') || 
       title.includes('coo') || title.includes('cto') || title.includes('president') ||
       title.includes('vp') || title.includes('vice president')) {
     return 'Executive';
   }
-  
-  // Director level
-  if (title.includes('director')) {
-    return 'Director';
-  }
-  
-  // Manager level
+  if (title.includes('director')) return 'Director';
   if (title.includes('manager') || title.includes('supervisor') || title.includes('lead') ||
-      title.includes('head of')) {
-    return 'Manager';
-  }
-  
-  // Senior IC
-  if (title.includes('senior') || title.includes('sr.') || title.includes('principal')) {
-    return 'Senior';
-  }
-  
-  // Junior/Entry level
+      title.includes('head of')) return 'Manager';
+  if (title.includes('senior') || title.includes('sr.') || title.includes('principal')) return 'Senior';
   if (title.includes('junior') || title.includes('jr.') || title.includes('assistant') ||
-      title.includes('associate') || title.includes('coordinator') || title.includes('entry')) {
-    return 'Entry-Level';
-  }
-  
-  // Default to IC (Individual Contributor)
+      title.includes('associate') || title.includes('coordinator') || title.includes('entry')) return 'Entry-Level';
   return 'Individual Contributor';
 };
 
-// Role colors for the chart
 const ROLE_COLORS: Record<string, string> = {
-  'Executive': '#6366F1',      // Indigo
-  'Director': '#8B5CF6',       // Purple
-  'Manager': '#EC4899',        // Pink
-  'Senior': '#F59E0B',         // Amber
-  'Individual Contributor': '#10B981', // Green
-  'Entry-Level': '#06B6D4',    // Cyan
-  'Unknown': '#9CA3AF'         // Gray
+  'Executive': '#6366F1',
+  'Director': '#8B5CF6',
+  'Manager': '#EC4899',
+  'Senior': '#F59E0B',
+  'Individual Contributor': '#10B981',
+  'Entry-Level': '#06B6D4',
+  'Unknown': '#9CA3AF'
 };
 
 const ROLE_ORDER = ['Executive', 'Director', 'Manager', 'Senior', 'Individual Contributor', 'Entry-Level', 'Unknown'];
@@ -123,19 +99,16 @@ const ScaleDashboard: React.FC = () => {
     const normalize = (s: string) => s?.toLowerCase().trim() || '';
     const currentAccount = normalize(companyName.split(' - ')[0]);
 
-    // 1. Eligible (Active Employees)
     const eligibleEmployees = employees.filter(e => 
       e.status !== 'Inactive' && normalize(e.company_name || e.company).includes(currentAccount)
     );
 
-    // Build employee lookup by name for role matching
     const employeeLookup = new Map<string, Employee>();
     eligibleEmployees.forEach(e => {
       const name = normalize(e.employee_name || e.full_name || e.name || `${e.first_name} ${e.last_name}`);
       if (name) employeeLookup.set(name, e);
     });
 
-    // 2. Completed Sessions - use account_name directly from session data
     const completedSessions = sessions.filter(s => {
       const status = normalize(s.status || '');
       const account = normalize(
@@ -183,10 +156,8 @@ const ScaleDashboard: React.FC = () => {
 
     const activeWithTwoPlus = Object.values(repeatUsers).filter(c => c >= 2).length;
     const engagementRate = activeInPeriod > 0 ? (activeWithTwoPlus / activeInPeriod) * 100 : 0;
-    
     const avgSessionsPerActive = activeInPeriod > 0 ? (currentPeriodSessions.length / activeInPeriod) : 0;
 
-    // Momentum (Current Calendar Month)
     const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     
@@ -199,7 +170,6 @@ const ScaleDashboard: React.FC = () => {
     const mau = getUniqueEmployees(thisMonthSessions);
     const mauPrior = getUniqueEmployees(lastMonthSessions);
 
-    // Theme Analysis
     const parseThemes = (sessions: SessionWithEmployee[], field: keyof SessionWithEmployee) => {
       const counts: Record<string, number> = {};
       let totalTags = 0;
@@ -223,14 +193,45 @@ const ScaleDashboard: React.FC = () => {
       wellbeing: parseThemes(currentPeriodSessions, 'mental_well_being')
     };
 
-    // Sessions by Role Analysis
-    const sessionsByRole: Record<string, number> = {};
-    currentPeriodSessions.forEach(s => {
-      const empName = normalize(s.employee_name || '');
-      const employee = employeeLookup.get(empName);
-      const jobTitle = employee?.job_title || employee?.company_role;
-      const role = categorizeRole(jobTitle);
-      sessionsByRole[role] = (sessionsByRole[role] || 0) + 1;
+    // Monthly sessions by role for stacked bar chart
+    const monthlySessionsByRole: { month: string; monthLabel: string; roles: Record<string, number>; total: number }[] = [];
+    
+    // Generate months within the window
+    const months: Date[] = [];
+    const tempDate = new Date(windowStart);
+    tempDate.setDate(1); // Start of month
+    while (tempDate <= now) {
+      months.push(new Date(tempDate));
+      tempDate.setMonth(tempDate.getMonth() + 1);
+    }
+
+    months.forEach(monthStart => {
+      const monthEnd = new Date(monthStart);
+      monthEnd.setMonth(monthEnd.getMonth() + 1);
+      
+      const monthSessions = currentPeriodSessions.filter(s => {
+        const d = new Date(s.session_date);
+        return d >= monthStart && d < monthEnd;
+      });
+
+      const roles: Record<string, number> = {};
+      monthSessions.forEach(s => {
+        const empName = normalize(s.employee_name || '');
+        const employee = employeeLookup.get(empName);
+        const jobTitle = employee?.job_title || employee?.company_role;
+        const role = categorizeRole(jobTitle);
+        roles[role] = (roles[role] || 0) + 1;
+      });
+
+      const monthLabel = monthStart.toLocaleDateString('en-US', { month: 'short' });
+      const monthKey = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}`;
+      
+      monthlySessionsByRole.push({
+        month: monthKey,
+        monthLabel,
+        roles,
+        total: monthSessions.length
+      });
     });
 
     // Feedback
@@ -258,7 +259,7 @@ const ScaleDashboard: React.FC = () => {
       mauPrior,
       activeWithTwoPlus,
       themes,
-      sessionsByRole,
+      monthlySessionsByRole,
       nps,
       avgSat,
       surveyCount: cohortSurveys.length
@@ -280,6 +281,9 @@ const ScaleDashboard: React.FC = () => {
 
   const m = metrics!;
 
+  // Find max for chart scaling
+  const maxMonthlyTotal = Math.max(...m.monthlySessionsByRole.map(d => d.total), 1);
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12 font-sans">
       
@@ -297,7 +301,7 @@ const ScaleDashboard: React.FC = () => {
         </div>
         
         <div className="bg-gray-50 p-1 rounded-xl flex items-center border border-gray-100">
-          {[30, 90, 180, 365].map((d, idx, arr) => (
+          {[30, 90, 180, 365].map((d) => (
             <button
               key={d}
               onClick={() => setWindow(d)}
@@ -309,7 +313,7 @@ const ScaleDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Cards: Resource Health */}
+      {/* Hero Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <HealthCard 
           title="Adoption" 
@@ -338,8 +342,72 @@ const ScaleDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Why Employees Book Column */}
+        {/* Main Content Column */}
         <div className="lg:col-span-2 space-y-6">
+          
+          {/* Monthly Sessions by Role - Stacked Bar Chart */}
+          <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-6">
+               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-boon-purple" /> Sessions by Role
+               </h3>
+               <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                 {windowDays === 365 ? 'Last 12 Months' : `Last ${windowDays} Days`}
+               </span>
+            </div>
+            
+            {/* Stacked Bar Chart */}
+            <div className="flex items-end gap-2 h-64 mb-4">
+              {m.monthlySessionsByRole.map((monthData, idx) => (
+                <div key={monthData.month} className="flex-1 flex flex-col items-center">
+                  {/* Stacked bar */}
+                  <div 
+                    className="w-full flex flex-col-reverse rounded-t-lg overflow-hidden transition-all duration-300"
+                    style={{ height: `${(monthData.total / maxMonthlyTotal) * 100}%`, minHeight: monthData.total > 0 ? '8px' : '0' }}
+                  >
+                    {ROLE_ORDER.map(role => {
+                      const count = monthData.roles[role] || 0;
+                      if (count === 0) return null;
+                      const pct = (count / monthData.total) * 100;
+                      return (
+                        <div
+                          key={role}
+                          className="w-full transition-all duration-300 hover:opacity-80"
+                          style={{ 
+                            height: `${pct}%`,
+                            backgroundColor: ROLE_COLORS[role],
+                            minHeight: '4px'
+                          }}
+                          title={`${role}: ${count} (${pct.toFixed(0)}%)`}
+                        />
+                      );
+                    })}
+                  </div>
+                  {/* Month label */}
+                  <div className="mt-2 text-[10px] font-bold text-gray-400">{monthData.monthLabel}</div>
+                  {/* Total count */}
+                  <div className="text-[10px] font-medium text-gray-300">{monthData.total}</div>
+                </div>
+              ))}
+            </div>
+            
+            {/* Legend */}
+            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+              {ROLE_ORDER.filter(role => 
+                m.monthlySessionsByRole.some(m => (m.roles[role] || 0) > 0)
+              ).map(role => (
+                <div key={role} className="flex items-center gap-1.5">
+                  <div 
+                    className="w-3 h-3 rounded-sm" 
+                    style={{ backgroundColor: ROLE_COLORS[role] }}
+                  />
+                  <span className="text-[10px] font-medium text-gray-500">{role}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Why Employees Book */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-8">
                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -349,53 +417,9 @@ const ScaleDashboard: React.FC = () => {
             </div>
             
             <div className="space-y-8">
-               <ThemeRow 
-                label="Leadership & Management" 
-                pct={m.themes.leadership.pct} 
-                sub={m.themes.leadership.top} 
-                color="bg-boon-purple" 
-               />
-               <ThemeRow 
-                label="Communication" 
-                pct={m.themes.comms.pct} 
-                sub={m.themes.comms.top} 
-                color="bg-boon-coral" 
-               />
-               <ThemeRow 
-                label="Mental Well-being" 
-                pct={m.themes.wellbeing.pct} 
-                sub={m.themes.wellbeing.top} 
-                color="bg-boon-blue" 
-               />
-            </div>
-          </div>
-          
-          {/* Sessions by Role Chart */}
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-6">
-               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
-                  <Briefcase className="w-4 h-4 text-boon-purple" /> Sessions by Role Level
-               </h3>
-               <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
-                 {windowDays === 365 ? '1 Year' : `${windowDays} Days`}
-               </span>
-            </div>
-            
-            <RoleStackedBar data={m.sessionsByRole} total={m.currentSessionsCount} />
-            
-            {/* Legend */}
-            <div className="flex flex-wrap gap-4 mt-6 pt-4 border-t border-gray-100">
-              {ROLE_ORDER.filter(role => m.sessionsByRole[role] > 0).map(role => (
-                <div key={role} className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-sm" 
-                    style={{ backgroundColor: ROLE_COLORS[role] }}
-                  />
-                  <span className="text-xs font-medium text-gray-600">
-                    {role} ({m.sessionsByRole[role] || 0})
-                  </span>
-                </div>
-              ))}
+               <ThemeRow label="Leadership & Management" pct={m.themes.leadership.pct} sub={m.themes.leadership.top} color="bg-boon-purple" />
+               <ThemeRow label="Communication" pct={m.themes.comms.pct} sub={m.themes.comms.top} color="bg-boon-coral" />
+               <ThemeRow label="Mental Well-being" pct={m.themes.wellbeing.pct} sub={m.themes.wellbeing.top} color="bg-boon-blue" />
             </div>
           </div>
           
@@ -408,7 +432,7 @@ const ScaleDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar Column: Feedback & Utilization */}
+        {/* Sidebar */}
         <div className="space-y-6">
            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Benefit Sentiment</h3>
@@ -452,7 +476,6 @@ const ScaleDashboard: React.FC = () => {
 };
 
 // Sub-components
-
 const HealthCard = ({ title, value, label, trend, icon, subtitle, trendLabel }: any) => {
   const isPositive = (trend || 0) > 0;
   const isZero = (trend || 0) === 0;
@@ -496,78 +519,9 @@ const ThemeRow = ({ label, pct, sub, color }: any) => (
       </div>
     </div>
     <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-       <div 
-        className={`h-full rounded-full transition-all duration-1000 ease-out ${color}`} 
-        style={{ width: `${pct}%`, opacity: 0.8 }}
-       ></div>
+       <div className={`h-full rounded-full transition-all duration-1000 ease-out ${color}`} style={{ width: `${pct}%`, opacity: 0.8 }}></div>
     </div>
   </div>
 );
-
-const RoleStackedBar = ({ data, total }: { data: Record<string, number>, total: number }) => {
-  if (total === 0) {
-    return (
-      <div className="text-center py-8 text-gray-400 text-sm">
-        No sessions in this period
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Stacked horizontal bar */}
-      <div className="h-12 flex rounded-xl overflow-hidden">
-        {ROLE_ORDER.map(role => {
-          const count = data[role] || 0;
-          const pct = (count / total) * 100;
-          if (pct === 0) return null;
-          
-          return (
-            <div
-              key={role}
-              className="h-full flex items-center justify-center transition-all duration-500 hover:opacity-90 group relative"
-              style={{ 
-                width: `${pct}%`, 
-                backgroundColor: ROLE_COLORS[role],
-                minWidth: pct > 0 ? '20px' : '0'
-              }}
-              title={`${role}: ${count} sessions (${pct.toFixed(1)}%)`}
-            >
-              {pct >= 8 && (
-                <span className="text-white text-xs font-bold">
-                  {pct.toFixed(0)}%
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-      
-      {/* Role breakdown list */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
-        {ROLE_ORDER.filter(role => (data[role] || 0) > 0).map(role => {
-          const count = data[role] || 0;
-          const pct = (count / total) * 100;
-          
-          return (
-            <div key={role} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-2">
-                <div 
-                  className="w-2 h-8 rounded-full" 
-                  style={{ backgroundColor: ROLE_COLORS[role] }}
-                />
-                <div>
-                  <div className="text-xs font-bold text-gray-700">{role}</div>
-                  <div className="text-[10px] text-gray-400">{pct.toFixed(1)}%</div>
-                </div>
-              </div>
-              <div className="text-lg font-black text-gray-800">{count}</div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
 
 export default ScaleDashboard;
