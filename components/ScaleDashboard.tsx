@@ -1,3 +1,6 @@
+Scaledashboard · TSX
+Copy
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -117,7 +120,9 @@ const ScaleDashboard: React.FC = () => {
         s.employee_manager?.company || 
         ''
       );
-      return status === 'completed' && account.includes(currentAccount);
+      // Include all statuses EXCEPT "coach no show"
+      const isValidStatus = status !== 'coach no show';
+      return isValidStatus && account.includes(currentAccount);
     });
 
     const now = new Date();
