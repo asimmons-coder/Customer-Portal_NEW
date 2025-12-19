@@ -251,22 +251,26 @@ const ScaleBaselineDashboard: React.FC = () => {
           value={m.mostCommonRole}
           isText
         />
-        <SummaryCard
+        <SummaryCardWithBenchmark
           icon={<Smile className="w-5 h-5 text-boon-green" />}
           label="AVG SATISFACTION"
-          value={m.avgSatisfaction.toFixed(1)}
+          value={m.avgSatisfaction}
+          benchmark={benchmarks.baseline_satisfaction?.avg}
           suffix="/ 10"
         />
-        <SummaryCard
+        <SummaryCardWithBenchmark
           icon={<TrendingUp className="w-5 h-5 text-boon-coral" />}
           label="AVG PRODUCTIVITY"
-          value={m.avgProductivity.toFixed(1)}
+          value={m.avgProductivity}
+          benchmark={benchmarks.baseline_productivity?.avg}
           suffix="/ 10"
         />
-        <SummaryCard
-          icon={<Award className="w-5 h-5 text-boon-blue" />}
-          label="NEW TO COACHING"
-          value={`${m.newToCoachingPct.toFixed(0)}%`}
+        <SummaryCardWithBenchmark
+          icon={<Heart className="w-5 h-5 text-boon-blue" />}
+          label="WORK-LIFE BALANCE"
+          value={m.avgWorkLifeBalance}
+          benchmark={benchmarks.baseline_work_life_balance?.avg}
+          suffix="/ 10"
         />
       </div>
 
@@ -323,31 +327,6 @@ const ScaleBaselineDashboard: React.FC = () => {
               )}
             </div>
           </div>
-
-          {/* Wellbeing Baseline */}
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-              <Heart className="w-4 h-4 text-boon-green" /> Wellbeing Baseline (1-10)
-            </h3>
-            
-            <div className="grid grid-cols-3 gap-6">
-              <WellbeingGaugeWithBenchmark 
-                label="Satisfaction" 
-                value={m.avgSatisfaction} 
-                benchmark={benchmarks.baseline_satisfaction?.avg}
-              />
-              <WellbeingGaugeWithBenchmark 
-                label="Productivity" 
-                value={m.avgProductivity} 
-                benchmark={benchmarks.baseline_productivity?.avg}
-              />
-              <WellbeingGaugeWithBenchmark 
-                label="Work-Life Balance" 
-                value={m.avgWorkLifeBalance} 
-                benchmark={benchmarks.baseline_work_life_balance?.avg}
-              />
-            </div>
-          </div>
         </div>
 
         {/* Sidebar - Demographics */}
@@ -402,6 +381,37 @@ const SummaryCard = ({ icon, label, value, suffix, isText }: any) => (
     </div>
   </div>
 );
+
+const SummaryCardWithBenchmark = ({ icon, label, value, benchmark, suffix }: {
+  icon: React.ReactNode;
+  label: string;
+  value: number;
+  benchmark?: number;
+  suffix?: string;
+}) => {
+  const pctDiff = benchmark ? ((value - benchmark) / benchmark) * 100 : null;
+  const isAbove = pctDiff !== null && pctDiff > 0;
+  const isBelow = pctDiff !== null && pctDiff < 0;
+
+  return (
+    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
+      </div>
+      <div className="text-3xl font-black text-boon-dark">
+        {value.toFixed(1)}
+        {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
+      </div>
+      {pctDiff !== null && (
+        <div className={`flex items-center gap-1 mt-2 text-xs font-bold ${isAbove ? 'text-green-600' : isBelow ? 'text-amber-600' : 'text-gray-400'}`}>
+          {isAbove ? <TrendingUp size={12} /> : isBelow ? <TrendingDown size={12} /> : <Minus size={12} />}
+          <span>{isAbove ? '+' : ''}{pctDiff.toFixed(0)}% vs Boon avg</span>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const WellbeingGauge = ({ label, value }: { label: string; value: number }) => {
   const percentage = (value / 10) * 100;
