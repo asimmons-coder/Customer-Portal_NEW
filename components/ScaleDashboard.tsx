@@ -159,17 +159,8 @@ const ScaleDashboard: React.FC = () => {
     const engagementRate = activeInPeriod > 0 ? (activeWithTwoPlus / activeInPeriod) * 100 : 0;
     const avgSessionsPerActive = activeInPeriod > 0 ? (currentPeriodSessions.length / activeInPeriod) : 0;
 
-    const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    
-    const thisMonthSessions = completedSessions.filter(s => new Date(s.session_date) >= startOfCurrentMonth);
-    const lastMonthSessions = completedSessions.filter(s => {
-      const d = new Date(s.session_date);
-      return d >= startOfLastMonth && d < startOfCurrentMonth;
-    });
-
-    const mau = getUniqueEmployees(thisMonthSessions);
-    const mauPrior = getUniqueEmployees(lastMonthSessions);
+    const mau = activeInPeriod;
+    const mauPrior = activeInPrior;
 
     const parseThemes = (sessions: SessionWithEmployee[], field: keyof SessionWithEmployee) => {
       const counts: Record<string, number> = {};
@@ -329,11 +320,11 @@ const ScaleDashboard: React.FC = () => {
         />
         <HealthCard 
           title="Momentum" 
-          subtitle="Unique users this month"
+          subtitle={`Unique users in ${windowDays === 365 ? '1 year' : `${windowDays} days`}`}
           value={m.mau} 
-          trend={m.mauPrior > 0 ? (m.mau - m.mauPrior) : null}
+          trend={m.mauPrior > 0 ? ((m.mau - m.mauPrior) / m.mauPrior) * 100 : null}
           icon={<TrendingUp className="w-5 h-5 text-boon-green" />}
-          trendLabel="vs last month"
+          trendLabel="vs prior period"
         />
       </div>
 
