@@ -116,7 +116,7 @@ const ScaleDashboard: React.FC = () => {
       if (name) employeeLookup.set(name, e);
     });
 
-    // Include all statuses EXCEPT "coach no show"
+    // Include only sessions that actually happened (exclude scheduled and coach no show)
     const completedSessions = sessions.filter(s => {
       const status = normalize(s.status || '');
       const account = normalize(
@@ -125,7 +125,8 @@ const ScaleDashboard: React.FC = () => {
         s.employee_manager?.company || 
         ''
       );
-      const isValidStatus = status !== 'coach no show';
+      // Exclude "scheduled" and "coach no show"
+      const isValidStatus = status !== 'coach no show' && status !== 'scheduled';
       return isValidStatus && account.includes(currentAccount);
     });
 
