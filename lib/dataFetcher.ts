@@ -158,6 +158,41 @@ export const getProgramConfig = async (): Promise<ProgramConfig[]> => {
 };
 
 /**
+ * Fetches benchmark data for comparisons.
+ * @param programType - 'Scale' or 'GROW'
+ * @returns Object with metric names as keys and benchmark data as values
+ */
+export const getBenchmarks = async (programType: 'Scale' | 'GROW' = 'Scale'): Promise<Record<string, {
+  avg: number;
+  p25: number;
+  p75: number;
+  sampleSize: number;
+}>> => {
+  const { data, error } = await supabase
+    .from('boon_benchmarks')
+    .select('*')
+    .eq('program_type', programType);
+
+  if (error) {
+    console.error('Error fetching benchmarks:', error);
+    return {};
+  }
+
+  // Convert to a lookup object by metric_name
+  const benchmarks: Record<string, any> = {};
+  data?.forEach((b: any) => {
+    benchmarks[b.metric_name] = {
+      avg: b.avg_value,
+      p25: b.percentile_25,
+      p75: b.percentile_75,
+      sampleSize: b.sample_size
+    };
+  });
+
+  return benchmarks;
+};
+
+/**
  * Calculates basic stats from an array of sessions.
  */
 export const calculateStats = (sessions: Session[]): DashboardStats => {

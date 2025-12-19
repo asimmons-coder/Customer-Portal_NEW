@@ -6,11 +6,13 @@ import {
   Briefcase, 
   Smile, 
   TrendingUp,
+  TrendingDown,
   Target,
   Clock,
   Calendar,
   Award,
-  Heart
+  Heart,
+  Minus
 } from 'lucide-react';
 
 interface ScaleWelcomeSurvey {
@@ -70,6 +72,7 @@ const FOCUS_AREA_LABELS: Record<string, string> = {
 
 const ScaleBaselineDashboard: React.FC = () => {
   const [surveyData, setSurveyData] = useState<ScaleWelcomeSurvey[]>([]);
+  const [benchmarks, setBenchmarks] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState('');
 
@@ -81,8 +84,28 @@ const ScaleBaselineDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
+        // Fetch survey data
         const data = await getWelcomeSurveyScaleData();
         setSurveyData(data as ScaleWelcomeSurvey[]);
+
+        // Fetch benchmarks
+        const { data: benchmarkData, error: benchmarkError } = await supabase
+          .from('boon_benchmarks')
+          .select('*')
+          .eq('program_type', 'Scale');
+
+        if (!benchmarkError && benchmarkData) {
+          const bm: Record<string, any> = {};
+          benchmarkData.forEach((b: any) => {
+            bm[b.metric_name] = {
+              avg: b.avg_value,
+              p25: b.percentile_25,
+              p75: b.percentile_75,
+              sampleSize: b.sample_size
+            };
+          });
+          setBenchmarks(bm);
+        }
       } catch (err) {
         console.error("Scale Baseline Error:", err);
       } finally {
@@ -308,9 +331,21 @@ const ScaleBaselineDashboard: React.FC = () => {
             </h3>
             
             <div className="grid grid-cols-3 gap-6">
-              <WellbeingGauge label="Satisfaction" value={m.avgSatisfaction} />
-              <WellbeingGauge label="Productivity" value={m.avgProductivity} />
-              <WellbeingGauge label="Work-Life Balance" value={m.avgWorkLifeBalance} />
+              <WellbeingGaugeWithBenchmark 
+                label="Satisfaction" 
+                value={m.avgSatisfaction} 
+                benchmark={benchmarks.baseline_satisfaction?.avg}
+              />
+              <WellbeingGaugeWithBenchmark 
+                label="Productivity" 
+                value={m.avgProductivity} 
+                benchmark={benchmarks.baseline_productivity?.avg}
+              />
+              <WellbeingGaugeWithBenchmark 
+                label="Work-Life Balance" 
+                value={m.avgWorkLifeBalance} 
+                benchmark={benchmarks.baseline_work_life_balance?.avg}
+              />
             </div>
           </div>
         </div>
@@ -403,6 +438,55 @@ const WellbeingGauge = ({ label, value }: { label: string; value: number }) => {
         </div>
       </div>
       <span className="text-xs font-bold text-gray-600 mt-2 text-center uppercase tracking-wide">{label}</span>
+    </div>
+  );
+};
+
+const WellbeingGaugeWithBenchmark = ({ label, value, benchmark }: { label: string; value: number; benchmark?: number }) => {
+  const percentage = (value / 10) * 100;
+  const circumference = 2 * Math.PI * 40;
+  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  
+  const diff = benchmark ? value - benchmark : null;
+  const isAbove = diff !== null && diff > 0;
+  const isBelow = diff !== null && diff < 0;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-24 h-24">
+        <svg className="w-24 h-24 transform -rotate-90">
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            stroke="#E5E7EB"
+            strokeWidth="8"
+            fill="none"
+          />
+          <circle
+            cx="48"
+            cy="48"
+            r="40"
+            stroke={isAbove ? '#10B981' : isBelow ? '#F59E0B' : '#3B82F6'}
+            strokeWidth="8"
+            fill="none"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-1000"
+          />
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-2xl font-black text-boon-dark">{value.toFixed(1)}</span>
+        </div>
+      </div>
+      <span className="text-xs font-bold text-gray-600 mt-2 text-center uppercase tracking-wide">{label}</span>
+      {benchmark && (
+        <div className={`flex items-center gap-1 mt-1 text-[10px] font-bold ${isAbove ? 'text-green-600' : isBelow ? 'text-amber-600' : 'text-gray-400'}`}>
+          {isAbove ? <TrendingUp size={10} /> : isBelow ? <TrendingDown size={10} /> : <Minus size={10} />}
+          <span>{isAbove ? '+' : ''}{diff?.toFixed(1)} vs Boon avg</span>
+        </div>
+      )}
     </div>
   );
 };
