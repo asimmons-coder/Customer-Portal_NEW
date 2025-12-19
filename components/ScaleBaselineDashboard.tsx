@@ -152,6 +152,19 @@ const ScaleBaselineDashboard: React.FC = () => {
       }
     });
 
+    // Gender distribution
+    const genderCounts: Record<string, number> = {};
+    surveyData.forEach(s => {
+      const gender = s.gender || 'Unknown';
+      genderCounts[gender] = (genderCounts[gender] || 0) + 1;
+    });
+
+    // New to coaching percentage
+    const newToCoachingPct = (previousCoachingCounts['No'] / total) * 100;
+
+    // Top 5 focus areas
+    const top5FocusAreas = sortedFocusAreas.slice(0, 5);
+
     return {
       total,
       mostCommonRole,
@@ -159,10 +172,13 @@ const ScaleBaselineDashboard: React.FC = () => {
       avgProductivity,
       avgWorkLifeBalance,
       sortedFocusAreas,
+      top5FocusAreas,
       ageCounts,
       tenureCounts,
       previousCoachingCounts,
-      roleCounts
+      roleCounts,
+      genderCounts,
+      newToCoachingPct
     };
   }, [surveyData, loading]);
 
@@ -200,7 +216,7 @@ const ScaleBaselineDashboard: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <SummaryCard
           icon={<Users className="w-5 h-5 text-boon-blue" />}
           label="PARTICIPANTS"
@@ -224,6 +240,32 @@ const ScaleBaselineDashboard: React.FC = () => {
           value={m.avgProductivity.toFixed(1)}
           suffix="/ 10"
         />
+        <SummaryCard
+          icon={<Award className="w-5 h-5 text-boon-blue" />}
+          label="NEW TO COACHING"
+          value={`${m.newToCoachingPct.toFixed(0)}%`}
+        />
+      </div>
+
+      {/* Top 5 Focus Areas Callout */}
+      <div className="bg-gradient-to-r from-boon-purple/10 to-boon-blue/10 p-6 rounded-2xl border border-boon-purple/20">
+        <h3 className="text-sm font-bold text-boon-dark mb-3 flex items-center gap-2">
+          <Target className="w-5 h-5 text-boon-purple" /> Top 5 Coaching Priorities
+        </h3>
+        <div className="flex flex-wrap gap-3">
+          {m.top5FocusAreas.map((focus, idx) => (
+            <div 
+              key={focus.key}
+              className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 flex items-center gap-2"
+            >
+              <span className="w-6 h-6 rounded-full bg-boon-purple text-white text-xs font-bold flex items-center justify-center">
+                {idx + 1}
+              </span>
+              <span className="text-sm font-medium text-gray-700">{focus.label}</span>
+              <span className="text-xs text-gray-400">({focus.pct.toFixed(0)}%)</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -279,6 +321,12 @@ const ScaleBaselineDashboard: React.FC = () => {
             icon={<Calendar className="w-4 h-4 text-boon-blue" />}
             title="AGE DISTRIBUTION"
             data={m.ageCounts}
+            total={m.total}
+          />
+          <DemographicCard
+            icon={<Users className="w-4 h-4 text-boon-pink" />}
+            title="GENDER"
+            data={m.genderCounts}
             total={m.total}
           />
           <DemographicCard
