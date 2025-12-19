@@ -98,6 +98,14 @@ const ScaleDashboard: React.FC = () => {
     const normalize = (s: string) => s?.toLowerCase().trim() || '';
     const currentAccount = normalize(companyName.split(' - ')[0]);
 
+    // Debug logging
+    console.log('Session Debug:', {
+      companyName,
+      currentAccount,
+      totalSessionsFetched: sessions.length,
+      sampleSessionAccounts: sessions.slice(0, 5).map(s => (s as any).account_name)
+    });
+
     const eligibleEmployees = employees.filter(e => 
       e.status !== 'Inactive' && normalize(e.company_name || e.company).includes(currentAccount)
     );
