@@ -357,51 +357,66 @@ const ScaleDashboard: React.FC = () => {
             </div>
             
             {/* Stacked Bar Chart */}
-            <div className="flex items-end gap-2 h-64 mb-4">
-              {m.monthlySessionsByRole.map((monthData, idx) => (
-                <div key={monthData.month} className="flex-1 flex flex-col items-center">
-                  {/* Stacked bar */}
-                  <div 
-                    className="w-full flex flex-col-reverse rounded-t-lg overflow-hidden transition-all duration-300"
-                    style={{ height: `${(monthData.total / maxMonthlyTotal) * 100}%`, minHeight: monthData.total > 0 ? '8px' : '0' }}
-                  >
-                    {ROLE_ORDER.map(role => {
-                      const count = monthData.roles[role] || 0;
-                      if (count === 0) return null;
-                      const pct = (count / monthData.total) * 100;
-                      return (
-                        <div
-                          key={role}
-                          className="w-full transition-all duration-300 hover:opacity-80"
-                          style={{ 
-                            height: `${pct}%`,
-                            backgroundColor: ROLE_COLORS[role],
-                            minHeight: '4px'
-                          }}
-                          title={`${role}: ${count} (${pct.toFixed(0)}%)`}
-                        />
-                      );
-                    })}
-                  </div>
-                  {/* Month label */}
-                  <div className="mt-2 text-[10px] font-bold text-gray-400">{monthData.monthLabel}</div>
-                  {/* Total count */}
-                  <div className="text-[10px] font-medium text-gray-300">{monthData.total}</div>
-                </div>
-              ))}
+            <div className="relative">
+              {/* Y-axis labels */}
+              <div className="absolute left-0 top-0 bottom-8 w-10 flex flex-col justify-between text-right pr-2">
+                <span className="text-xs text-gray-400 font-medium">{maxMonthlyTotal}</span>
+                <span className="text-xs text-gray-400 font-medium">{Math.round(maxMonthlyTotal / 2)}</span>
+                <span className="text-xs text-gray-400 font-medium">0</span>
+              </div>
+              
+              {/* Chart area */}
+              <div className="ml-12 flex items-end gap-3" style={{ height: '280px' }}>
+                {m.monthlySessionsByRole.map((monthData) => {
+                  const barHeight = maxMonthlyTotal > 0 ? (monthData.total / maxMonthlyTotal) * 240 : 0;
+                  
+                  return (
+                    <div key={monthData.month} className="flex-1 flex flex-col items-center">
+                      {/* Total on top */}
+                      <div className="text-sm font-bold text-gray-700 mb-1">{monthData.total}</div>
+                      
+                      {/* Stacked bar */}
+                      <div 
+                        className="w-full max-w-16 flex flex-col-reverse rounded-t-lg overflow-hidden"
+                        style={{ height: `${barHeight}px`, minHeight: monthData.total > 0 ? '4px' : '0' }}
+                      >
+                        {ROLE_ORDER.map(role => {
+                          const count = monthData.roles[role] || 0;
+                          if (count === 0 || monthData.total === 0) return null;
+                          const pct = (count / monthData.total) * 100;
+                          return (
+                            <div
+                              key={role}
+                              className="w-full transition-all duration-300 hover:opacity-80 cursor-pointer"
+                              style={{ 
+                                flex: `${count} 0 0%`,
+                                backgroundColor: ROLE_COLORS[role]
+                              }}
+                              title={`${role}: ${count} sessions (${pct.toFixed(0)}%)`}
+                            />
+                          );
+                        })}
+                      </div>
+                      
+                      {/* Month label */}
+                      <div className="mt-3 text-sm font-semibold text-gray-600">{monthData.monthLabel}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
             
             {/* Legend */}
-            <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap gap-4 pt-4 mt-4 border-t border-gray-100">
               {ROLE_ORDER.filter(role => 
                 m.monthlySessionsByRole.some(m => (m.roles[role] || 0) > 0)
               ).map(role => (
-                <div key={role} className="flex items-center gap-1.5">
+                <div key={role} className="flex items-center gap-2">
                   <div 
-                    className="w-3 h-3 rounded-sm" 
+                    className="w-4 h-4 rounded" 
                     style={{ backgroundColor: ROLE_COLORS[role] }}
                   />
-                  <span className="text-[10px] font-medium text-gray-500">{role}</span>
+                  <span className="text-sm font-medium text-gray-600">{role}</span>
                 </div>
               ))}
             </div>
