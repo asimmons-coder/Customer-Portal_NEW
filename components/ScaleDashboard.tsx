@@ -1,6 +1,3 @@
-Scaledashboard · TSX
-Copy
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -26,7 +23,6 @@ import {
   Briefcase
 } from 'lucide-react';
 
-// Role categorization helper
 const categorizeRole = (jobTitle: string | undefined | null): string => {
   if (!jobTitle) return 'Unknown';
   const title = jobTitle.toLowerCase();
@@ -112,6 +108,7 @@ const ScaleDashboard: React.FC = () => {
       if (name) employeeLookup.set(name, e);
     });
 
+    // Include all statuses EXCEPT "coach no show"
     const completedSessions = sessions.filter(s => {
       const status = normalize(s.status || '');
       const account = normalize(
@@ -120,7 +117,6 @@ const ScaleDashboard: React.FC = () => {
         s.employee_manager?.company || 
         ''
       );
-      // Include all statuses EXCEPT "coach no show"
       const isValidStatus = status !== 'coach no show';
       return isValidStatus && account.includes(currentAccount);
     });
@@ -201,10 +197,9 @@ const ScaleDashboard: React.FC = () => {
     // Monthly sessions by role for stacked bar chart
     const monthlySessionsByRole: { month: string; monthLabel: string; roles: Record<string, number>; total: number }[] = [];
     
-    // Generate months within the window
     const months: Date[] = [];
     const tempDate = new Date(windowStart);
-    tempDate.setDate(1); // Start of month
+    tempDate.setDate(1);
     while (tempDate <= now) {
       months.push(new Date(tempDate));
       tempDate.setMonth(tempDate.getMonth() + 1);
@@ -239,7 +234,6 @@ const ScaleDashboard: React.FC = () => {
       });
     });
 
-    // Feedback
     const eligibleEmails = new Set(eligibleEmployees.map(e => normalize(e.company_email || e.email)).filter(Boolean));
     const cohortSurveys = surveys.filter(s => s.email && eligibleEmails.has(normalize(s.email)));
     
@@ -285,14 +279,11 @@ const ScaleDashboard: React.FC = () => {
   }
 
   const m = metrics!;
-
-  // Find max for chart scaling
   const maxMonthlyTotal = Math.max(...m.monthlySessionsByRole.map(d => d.total), 1);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-12 font-sans">
       
-      {/* Global Context Bar */}
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
         <div className="flex flex-wrap items-center gap-6">
           <div className="flex items-center gap-2">
@@ -318,11 +309,10 @@ const ScaleDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Hero Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <HealthCard 
           title="Adoption" 
-          subtitle={`Window Active / Eligible`}
+          subtitle="Window Active / Eligible"
           value={`${m.adoptionRate.toFixed(1)}%`} 
           trend={m.priorAdoptionRate > 0 ? (m.adoptionRate - m.priorAdoptionRate) : null}
           icon={<Zap className="w-5 h-5 text-boon-blue" />}
@@ -347,10 +337,8 @@ const ScaleDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* Main Content Column */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* Monthly Sessions by Role - Stacked Bar Chart */}
           <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-6">
                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -361,26 +349,21 @@ const ScaleDashboard: React.FC = () => {
                </span>
             </div>
             
-            {/* Stacked Bar Chart */}
             <div className="relative">
-              {/* Y-axis labels */}
               <div className="absolute left-0 top-0 bottom-8 w-10 flex flex-col justify-between text-right pr-2">
                 <span className="text-xs text-gray-400 font-medium">{maxMonthlyTotal}</span>
                 <span className="text-xs text-gray-400 font-medium">{Math.round(maxMonthlyTotal / 2)}</span>
                 <span className="text-xs text-gray-400 font-medium">0</span>
               </div>
               
-              {/* Chart area */}
               <div className="ml-12 flex items-end gap-3" style={{ height: '280px' }}>
                 {m.monthlySessionsByRole.map((monthData) => {
                   const barHeight = maxMonthlyTotal > 0 ? (monthData.total / maxMonthlyTotal) * 240 : 0;
                   
                   return (
                     <div key={monthData.month} className="flex-1 flex flex-col items-center">
-                      {/* Total on top */}
                       <div className="text-sm font-bold text-gray-700 mb-1">{monthData.total}</div>
                       
-                      {/* Stacked bar */}
                       <div 
                         className="w-full max-w-16 flex flex-col-reverse rounded-t-lg overflow-hidden"
                         style={{ height: `${barHeight}px`, minHeight: monthData.total > 0 ? '4px' : '0' }}
@@ -388,7 +371,6 @@ const ScaleDashboard: React.FC = () => {
                         {ROLE_ORDER.map(role => {
                           const count = monthData.roles[role] || 0;
                           if (count === 0 || monthData.total === 0) return null;
-                          const pct = (count / monthData.total) * 100;
                           return (
                             <div
                               key={role}
@@ -397,24 +379,22 @@ const ScaleDashboard: React.FC = () => {
                                 flex: `${count} 0 0%`,
                                 backgroundColor: ROLE_COLORS[role]
                               }}
-                              title={`${role}: ${count} sessions (${pct.toFixed(0)}%)`}
+                              title={`${role}: ${count} sessions (${((count / monthData.total) * 100).toFixed(0)}%)`}
                             />
                           );
                         })}
                       </div>
                       
-                      {/* Month label */}
                       <div className="mt-3 text-sm font-semibold text-gray-600">{monthData.monthLabel}</div>
                     </div>
                   );
                 })}
               </div>
             </div>
-            
-            {/* Legend */}
+
             <div className="flex flex-wrap gap-4 pt-4 mt-4 border-t border-gray-100">
               {ROLE_ORDER.filter(role => 
-                m.monthlySessionsByRole.some(m => (m.roles[role] || 0) > 0)
+                m.monthlySessionsByRole.some(md => (md.roles[role] || 0) > 0)
               ).map(role => (
                 <div key={role} className="flex items-center gap-2">
                   <div 
@@ -427,7 +407,6 @@ const ScaleDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Why Employees Book */}
           <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-8">
                <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -452,7 +431,6 @@ const ScaleDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Sidebar */}
         <div className="space-y-6">
            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Benefit Sentiment</h3>
@@ -495,7 +473,6 @@ const ScaleDashboard: React.FC = () => {
   );
 };
 
-// Sub-components
 const HealthCard = ({ title, value, label, trend, icon, subtitle, trendLabel }: any) => {
   const isPositive = (trend || 0) > 0;
   const isZero = (trend || 0) === 0;
@@ -516,7 +493,7 @@ const HealthCard = ({ title, value, label, trend, icon, subtitle, trendLabel }: 
           {value} <span className="text-sm font-bold text-gray-300">{label}</span>
         </div>
         <div className="text-xs font-bold text-boon-dark mt-2 uppercase tracking-wide">{title}</div>
-        <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{subtitle} {trend !== null && trendLabel && <span className="text-gray-300 ml-1">· {trendLabel}</span>}</p>
+        <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{subtitle} {trend !== null && trendLabel && <span className="text-gray-300 ml-1">- {trendLabel}</span>}</p>
       </div>
     </div>
   );
