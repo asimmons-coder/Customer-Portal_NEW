@@ -195,11 +195,12 @@ const ScaleDashboard: React.FC = () => {
     };
 
     // Monthly sessions by role for stacked bar chart
+    // Show full months that overlap with the window period
     const monthlySessionsByRole: { month: string; monthLabel: string; roles: Record<string, number>; total: number }[] = [];
     
     const months: Date[] = [];
     const tempDate = new Date(windowStart);
-    tempDate.setDate(1);
+    tempDate.setDate(1); // Start of the month containing windowStart
     while (tempDate <= now) {
       months.push(new Date(tempDate));
       tempDate.setMonth(tempDate.getMonth() + 1);
@@ -209,7 +210,8 @@ const ScaleDashboard: React.FC = () => {
       const monthEnd = new Date(monthStart);
       monthEnd.setMonth(monthEnd.getMonth() + 1);
       
-      const monthSessions = currentPeriodSessions.filter(s => {
+      // Use completedSessions (all sessions) not currentPeriodSessions, to show full month data
+      const monthSessions = completedSessions.filter(s => {
         const d = new Date(s.session_date);
         return d >= monthStart && d < monthEnd;
       });
