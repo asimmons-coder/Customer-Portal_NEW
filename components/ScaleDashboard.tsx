@@ -227,11 +227,26 @@ const ScaleDashboard: React.FC = () => {
       });
     });
 
-    // Filter surveys by account (use same account matching logic as sessions)
+    // Filter surveys by account - extract first word for matching since accounts may differ
+    // e.g., user company "Seubert & Associates" should match survey account "Seubert"
+    const accountFirstWord = currentAccount.split(/[\s&]/)[0]; // Get first word before space or &
+    
+    // Debug logging
+    console.log('Survey Debug:', {
+      companyName,
+      currentAccount,
+      accountFirstWord,
+      totalSurveys: surveys.length,
+      sampleSurveyAccounts: surveys.slice(0, 5).map(s => (s as any).account)
+    });
+    
     const cohortSurveys = surveys.filter(s => {
       const surveyAccount = normalize((s as any).account || '');
-      return surveyAccount.includes(currentAccount) || currentAccount.includes(surveyAccount);
+      const match = surveyAccount.includes(accountFirstWord) || accountFirstWord.includes(surveyAccount);
+      return match;
     });
+    
+    console.log('Matched surveys:', cohortSurveys.length);
     
     const npsScores = cohortSurveys.map(s => s.nps).filter((s): s is number => s !== null && s !== undefined);
     const promoters = npsScores.filter(s => s >= 9).length;
