@@ -140,10 +140,12 @@ const ScaleBaselineDashboard: React.FC = () => {
       tenureCounts[tenure] = (tenureCounts[tenure] || 0) + 1;
     });
 
-    // Previous coaching
+    // Previous coaching - handle numeric (0, 1) or boolean values
     const previousCoachingCounts: Record<string, number> = { 'Yes': 0, 'No': 0 };
     surveyData.forEach(s => {
-      if (s.previous_coaching === 1) {
+      const val = s.previous_coaching;
+      // Check for truthy value (1, 1.0, true, "1", "yes", etc.)
+      if (val === 1 || val === 1.0 || val === true || val === '1' || val === 'yes' || val === 'Yes') {
         previousCoachingCounts['Yes']++;
       } else {
         previousCoachingCounts['No']++;
@@ -352,7 +354,7 @@ const WellbeingGauge = ({ label, value }: { label: string; value: number }) => {
           <span className="text-2xl font-black text-boon-dark">{value.toFixed(1)}</span>
         </div>
       </div>
-      <span className="text-xs font-medium text-gray-500 mt-2 text-center">{label}</span>
+      <span className="text-xs font-bold text-gray-600 mt-2 text-center uppercase tracking-wide">{label}</span>
     </div>
   );
 };
