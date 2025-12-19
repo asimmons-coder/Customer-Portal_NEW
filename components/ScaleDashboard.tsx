@@ -227,8 +227,11 @@ const ScaleDashboard: React.FC = () => {
       });
     });
 
-    const eligibleEmails = new Set(eligibleEmployees.map(e => normalize(e.company_email || e.email)).filter(Boolean));
-    const cohortSurveys = surveys.filter(s => s.email && eligibleEmails.has(normalize(s.email)));
+    // Filter surveys by account (use same account matching logic as sessions)
+    const cohortSurveys = surveys.filter(s => {
+      const surveyAccount = normalize((s as any).account || '');
+      return surveyAccount.includes(currentAccount) || currentAccount.includes(surveyAccount);
+    });
     
     const npsScores = cohortSurveys.map(s => s.nps).filter((s): s is number => s !== null && s !== undefined);
     const promoters = npsScores.filter(s => s >= 9).length;
