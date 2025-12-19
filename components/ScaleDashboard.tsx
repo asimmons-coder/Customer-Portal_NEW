@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabaseClient';
 import { 
   getDashboardSessions, 
   getSurveyResponses, 
-  getEmployeeRoster 
+  getEmployeeRoster,
+  getWelcomeSurveyScaleData
 } from '../lib/dataFetcher';
 import { 
   SessionWithEmployee, 
@@ -20,7 +21,9 @@ import {
   BarChart3,
   Info,
   LayoutDashboard,
-  Briefcase
+  Briefcase,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 
 const categorizeRole = (jobTitle: string | undefined | null): string => {
@@ -59,6 +62,7 @@ const ScaleDashboard: React.FC = () => {
   
   const [sessions, setSessions] = useState<SessionWithEmployee[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
+  const [welcomeSurveys, setWelcomeSurveys] = useState<any[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState('');
@@ -71,14 +75,16 @@ const ScaleDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
-        const [sessData, survData, empData] = await Promise.all([
+        const [sessData, survData, empData, welcomeData] = await Promise.all([
           getDashboardSessions(),
           getSurveyResponses(),
-          getEmployeeRoster()
+          getEmployeeRoster(),
+          getWelcomeSurveyScaleData()
         ]);
         setSessions(sessData);
         setSurveys(survData);
         setEmployees(empData);
+        setWelcomeSurveys(welcomeData);
       } catch (err) {
         console.error("Scale Dashboard Error:", err);
       } finally {
@@ -265,6 +271,57 @@ const ScaleDashboard: React.FC = () => {
     const satScores = cohortSurveys.map(s => s.coach_satisfaction).filter((s): s is number => s !== null && s !== undefined);
     const avgSat = satScores.length > 0 ? (satScores.reduce((a,b) => a+b,0) / satScores.length).toFixed(1) : null;
 
+    // Impact calculations - baseline vs post-session wellbeing
+    // Baseline from welcome surveys
+    const baselineSatisfaction = welcomeSurveys.length > 0
+      ? welcomeSurveys.reduce((sum, s) => sum + (s.satisfaction || 0), 0) / welcomeSurveys.length
+      : null;
+    const baselineProductivity = welcomeSurveys.length > 0
+      ? welcomeSurveys.reduce((sum, s) => sum + (s.productivity || 0), 0) / welcomeSurveys.length
+      : null;
+    const baselineWorkLifeBalance = welcomeSurveys.length > 0
+      ? welcomeSurveys.reduce((sum, s) => sum + (s.work_life_balance || 0), 0) / welcomeSurveys.length
+      : null;
+
+    // Post-session from survey_responses_unified (wellbeing fields)
+    const postSatisfactionScores = cohortSurveys
+      .map(s => (s as any).wellbeing_satisfaction)
+      .filter((s): s is number => s !== null && s !== undefined);
+    const postProductivityScores = cohortSurveys
+      .map(s => (s as any).wellbeing_productivity)
+      .filter((s): s is number => s !== null && s !== undefined);
+    const postWorkLifeScores = cohortSurveys
+      .map(s => (s as any).wellbeing_balance)
+      .filter((s): s is number => s !== null && s !== undefined);
+
+    const postSatisfaction = postSatisfactionScores.length > 0
+      ? postSatisfactionScores.reduce((a, b) => a + b, 0) / postSatisfactionScores.length
+      : null;
+    const postProductivity = postProductivityScores.length > 0
+      ? postProductivityScores.reduce((a, b) => a + b, 0) / postProductivityScores.length
+      : null;
+    const postWorkLifeBalance = postWorkLifeScores.length > 0
+      ? postWorkLifeScores.reduce((a, b) => a + b, 0) / postWorkLifeScores.length
+      : null;
+
+    const impact = {
+      satisfaction: {
+        baseline: baselineSatisfaction,
+        post: postSatisfaction,
+        change: baselineSatisfaction && postSatisfaction ? ((postSatisfaction - baselineSatisfaction) / baselineSatisfaction) * 100 : null
+      },
+      productivity: {
+        baseline: baselineProductivity,
+        post: postProductivity,
+        change: baselineProductivity && postProductivity ? ((postProductivity - baselineProductivity) / baselineProductivity) * 100 : null
+      },
+      workLifeBalance: {
+        baseline: baselineWorkLifeBalance,
+        post: postWorkLifeBalance,
+        change: baselineWorkLifeBalance && postWorkLifeBalance ? ((postWorkLifeBalance - baselineWorkLifeBalance) / baselineWorkLifeBalance) * 100 : null
+      }
+    };
+
     return {
       eligibleCount: eligibleEmployees.length,
       activeInPeriod,
@@ -281,9 +338,10 @@ const ScaleDashboard: React.FC = () => {
       monthlySessionsByRole,
       nps,
       avgSat,
-      surveyCount: cohortSurveys.length
+      surveyCount: cohortSurveys.length,
+      impact
     };
-  }, [sessions, surveys, employees, windowDays, companyName, loading]);
+  }, [sessions, surveys, employees, welcomeSurveys, windowDays, companyName, loading]);
 
   if (loading) {
     return (
@@ -354,6 +412,37 @@ const ScaleDashboard: React.FC = () => {
           trendLabel="vs prior period"
         />
       </div>
+
+      {/* Impact Section */}
+      {(m.impact.satisfaction.baseline || m.impact.productivity.baseline || m.impact.workLifeBalance.baseline) && (
+        <div className="bg-gradient-to-r from-boon-purple/5 to-boon-blue/5 p-6 rounded-2xl border border-boon-purple/10">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-boon-purple" /> Wellbeing Impact
+          </h3>
+          <p className="text-sm text-gray-500 mb-6">Comparing baseline (welcome survey) to post-session feedback</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <ImpactCard 
+              label="Satisfaction"
+              baseline={m.impact.satisfaction.baseline}
+              post={m.impact.satisfaction.post}
+              change={m.impact.satisfaction.change}
+            />
+            <ImpactCard 
+              label="Productivity"
+              baseline={m.impact.productivity.baseline}
+              post={m.impact.productivity.post}
+              change={m.impact.productivity.change}
+            />
+            <ImpactCard 
+              label="Work-Life Balance"
+              baseline={m.impact.workLifeBalance.baseline}
+              post={m.impact.workLifeBalance.post}
+              change={m.impact.workLifeBalance.change}
+            />
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
@@ -540,5 +629,46 @@ const ThemeRow = ({ label, pct, sub, color }: any) => (
     </div>
   </div>
 );
+
+const ImpactCard = ({ label, baseline, post, change }: { 
+  label: string; 
+  baseline: number | null; 
+  post: number | null; 
+  change: number | null;
+}) => {
+  const isPositive = change !== null && change > 0;
+  const isNegative = change !== null && change < 0;
+  
+  if (baseline === null && post === null) return null;
+
+  return (
+    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{label}</div>
+      
+      <div className="flex items-center gap-3 mb-3">
+        <div className="text-center">
+          <div className="text-2xl font-black text-gray-400">{baseline?.toFixed(1) || 'n/a'}</div>
+          <div className="text-[10px] text-gray-400 font-medium">Baseline</div>
+        </div>
+        <ArrowRight className="w-5 h-5 text-gray-300" />
+        <div className="text-center">
+          <div className="text-2xl font-black text-boon-dark">{post?.toFixed(1) || 'n/a'}</div>
+          <div className="text-[10px] text-gray-500 font-medium">Current</div>
+        </div>
+      </div>
+      
+      {change !== null && (
+        <div className={`flex items-center justify-center gap-1 py-2 px-3 rounded-lg text-sm font-bold ${
+          isPositive ? 'bg-green-50 text-green-600' : 
+          isNegative ? 'bg-amber-50 text-amber-600' : 
+          'bg-gray-50 text-gray-500'
+        }`}>
+          {isPositive ? <TrendingUp size={14} /> : isNegative ? <TrendingDown size={14} /> : null}
+          {isPositive ? '+' : ''}{change.toFixed(0)}% change
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default ScaleDashboard;
