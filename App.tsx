@@ -1,4 +1,4 @@
-
+import * as Sentry from "@sentry/react";
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
@@ -28,6 +28,19 @@ import {
   ClipboardList,
   Zap
 } from 'lucide-react';
+
+// --- Sentry Initialization ---
+Sentry.init({
+  dsn: "https://294c2316c823a2c471d7af41681f837c@o4510574332215296.ingest.us.sentry.io/4510574369112064",
+  integrations: [
+    Sentry.browserTracingIntegration(),
+    Sentry.replayIntegration(),
+  ],
+  tracesSampleRate: 1.0,
+  replaysSessionSampleRate: 0.1,
+  replaysOnErrorSampleRate: 1.0,
+  environment: import.meta.env.MODE, // 'development' or 'production'
+});
 
 // --- Program Display Name Mapping ---
 const programDisplayNames: Record<string, string> = {
@@ -65,6 +78,15 @@ const MainPortalLayout: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
+        // Set Sentry user context for better error tracking
+        if (session?.user) {
+          Sentry.setUser({
+            id: session.user.id,
+            email: session.user.email,
+          });
+          Sentry.setTag('company', company);
+        }
+
         // Fetch program type from program_config
         const { data: configData, error: configError } = await supabase
           .from('program_config')
@@ -75,12 +97,15 @@ const MainPortalLayout: React.FC = () => {
 
         if (configData?.program_type) {
           setProgramType(configData.program_type as 'GROW' | 'Scale' | 'Exec');
+          Sentry.setTag('program_type', configData.program_type);
         } else {
           // Fallback: check if company name contains Scale
           if (company.toUpperCase().includes('SCALE')) {
             setProgramType('Scale');
+            Sentry.setTag('program_type', 'Scale');
           } else {
             setProgramType('GROW');
+            Sentry.setTag('program_type', 'GROW');
           }
         }
         setProgramTypeLoading(false);
@@ -100,6 +125,7 @@ const MainPortalLayout: React.FC = () => {
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);
+        Sentry.captureException(err);
         setProgramTypeLoading(false);
       }
     };
@@ -108,6 +134,7 @@ const MainPortalLayout: React.FC = () => {
   }, []);
 
   const handleSignOut = async () => {
+    Sentry.setUser(null); // Clear user context on sign out
     await supabase.auth.signOut();
     navigate('/login'); 
   };
@@ -337,7 +364,8 @@ const NavItem = ({ icon, label, active = false, onClick }: { icon: React.ReactNo
   </button>
 );
 
-const App: React.FC = () => {
+// Wrap App with Sentry Error Boundary
+const AppContent: React.FC = () => {
   return (
     <Router>
       <Routes>
@@ -354,5 +382,22 @@ const App: React.FC = () => {
     </Router>
   );
 };
+
+const App = Sentry.withErrorBoundary(AppContent, {
+  fallback: (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center p-8">
+        <h1 className="text-xl font-semibold text-gray-800 mb-2">Something went wrong</h1>
+        <p className="text-gray-600 mb-4">We've been notified and are working on it.</p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+        >
+          Refresh Page
+        </button>
+      </div>
+    </div>
+  ),
+});
 
 export default App;
