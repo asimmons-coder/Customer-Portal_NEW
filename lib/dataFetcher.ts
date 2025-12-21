@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/react';
 import { supabase } from './supabaseClient';
 import { Employee, Session, DashboardStats, SessionWithEmployee, CompetencyScore, SurveyResponse, WelcomeSurveyEntry, ProgramConfig } from '../types';
 
@@ -8,16 +9,15 @@ export const getEmployeeRoster = async (): Promise<Employee[]> => {
   const { data, error } = await supabase
     .from('employee_manager')
     .select('*')
-    // Filter out known test accounts
     .neq('company_email', 'asimmons@boon-health.com')
     .order('last_name', { ascending: true });
 
   if (error) {
     console.error('Error fetching employees:', error);
+    Sentry.captureException(error, { tags: { query: 'getEmployeeRoster' } });
     return [];
   }
 
-  // Ensure derived fields are populated if needed
   return data.map((d: any) => ({
     ...d,
     full_name: d.first_name && d.last_name ? `${d.first_name} ${d.last_name}` : d.email,
@@ -26,7 +26,6 @@ export const getEmployeeRoster = async (): Promise<Employee[]> => {
   })) as Employee[];
 };
 
-// Alias for backwards compatibility
 export const fetchEmployees = getEmployeeRoster;
 
 
@@ -41,6 +40,7 @@ export const getDashboardSessions = async (): Promise<SessionWithEmployee[]> => 
 
   if (error) {
     console.error('Error fetching sessions:', error);
+    Sentry.captureException(error, { tags: { query: 'getDashboardSessions' } });
     return [];
   }
 
@@ -48,7 +48,6 @@ export const getDashboardSessions = async (): Promise<SessionWithEmployee[]> => 
 };
 
 export const fetchSessions = async (): Promise<Session[]> => {
-    // Cast to compatible type
     return (await getDashboardSessions()) as unknown as Session[];
 }
 
@@ -56,17 +55,16 @@ export const fetchSessions = async (): Promise<Session[]> => {
  * Fetches competency scores.
  */
 export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
-  // Corrected table name to 'competency_scores_grow' as per migration data source
   const { data, error } = await supabase
     .from('competency_scores_grow') 
     .select('*');
 
   if (error) {
     console.error('Error fetching competency scores:', error);
+    Sentry.captureException(error, { tags: { query: 'getCompetencyScores' } });
     return [];
   }
 
-  // Ensure numeric parsing for pre/post scores to prevent string concatenation issues
   return data.map((d: any) => ({
     ...d,
     pre: d.pre !== null && d.pre !== undefined ? Number(d.pre) : 0,
@@ -84,6 +82,7 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
 
   if (error) {
     console.error('Error fetching survey responses:', error);
+    Sentry.captureException(error, { tags: { query: 'getSurveyResponses' } });
     return [];
   }
 
@@ -100,6 +99,7 @@ export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
 
   if (error) {
     console.error('Error fetching welcome survey data:', error);
+    Sentry.captureException(error, { tags: { query: 'getWelcomeSurveyData' } });
     return [];
   }
 
@@ -116,6 +116,7 @@ export const getWelcomeSurveyScaleData = async (): Promise<WelcomeSurveyEntry[]>
 
   if (error) {
     console.error('Error fetching Scale welcome survey data:', error);
+    Sentry.captureException(error, { tags: { query: 'getWelcomeSurveyScaleData' } });
     return [];
   }
 
@@ -124,7 +125,6 @@ export const getWelcomeSurveyScaleData = async (): Promise<WelcomeSurveyEntry[]>
 
 /**
  * Fetches welcome survey data based on program type.
- * @param programType - 'scale' or 'grow' (defaults to 'grow' for backwards compatibility)
  */
 export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow' = 'grow'): Promise<WelcomeSurveyEntry[]> => {
   const tableName = programType === 'scale' ? 'welcome_survey_scale' : 'welcome_survey_baseline';
@@ -135,6 +135,7 @@ export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow
 
   if (error) {
     console.error(`Error fetching ${programType} welcome survey data:`, error);
+    Sentry.captureException(error, { tags: { query: 'getWelcomeSurveyByProgramType', programType } });
     return [];
   }
 
@@ -151,6 +152,7 @@ export const getProgramConfig = async (): Promise<ProgramConfig[]> => {
 
   if (error) {
     console.error('Error fetching program config:', error);
+    Sentry.captureException(error, { tags: { query: 'getProgramConfig' } });
     return [];
   }
 
@@ -159,8 +161,6 @@ export const getProgramConfig = async (): Promise<ProgramConfig[]> => {
 
 /**
  * Fetches benchmark data for comparisons.
- * @param programType - 'Scale' or 'GROW'
- * @returns Object with metric names as keys and benchmark data as values
  */
 export const getBenchmarks = async (programType: 'Scale' | 'GROW' = 'Scale'): Promise<Record<string, {
   avg: number;
@@ -175,10 +175,10 @@ export const getBenchmarks = async (programType: 'Scale' | 'GROW' = 'Scale'): Pr
 
   if (error) {
     console.error('Error fetching benchmarks:', error);
+    Sentry.captureException(error, { tags: { query: 'getBenchmarks', programType } });
     return {};
   }
 
-  // Convert to a lookup object by metric_name
   const benchmarks: Record<string, any> = {};
   data?.forEach((b: any) => {
     benchmarks[b.metric_name] = {
