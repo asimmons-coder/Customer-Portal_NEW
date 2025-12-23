@@ -51,6 +51,13 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   const [showSetup, setShowSetup] = useState(false);
   
   const [selectedStat, setSelectedStat] = useState<any>(null);
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<'name' | 'program' | 'completed' | 'noshow' | 'scheduled' | 'total'>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Program filter state (local to this page)
+  const [programFilter, setProgramFilter] = useState<string>('All');
 
   // Persistence for hidden employees
   const [hiddenEmployees, setHiddenEmployees] = useState<Set<string>>(() => {
@@ -245,11 +252,19 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     return Array.from(statsMap.values());
   }, [sessions, employees, filterType, filterValue, hiddenEmployees]);
 
+  // Get unique programs for filter dropdown
+  const availablePrograms = useMemo(() => {
+    const programs = [...new Set(aggregatedStats.map(s => s.program).filter(Boolean))];
+    return ['All', ...programs.sort()];
+  }, [aggregatedStats]);
 
-  // --- Filtering Displayed Employees ---
+  // --- Filtering and Sorting Displayed Employees ---
   const filteredData = useMemo(() => {
-    return aggregatedStats.filter(stat => {
+    let result = aggregatedStats.filter(stat => {
       const matchesSearch = stat.name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Program filter (local dropdown)
+      const matchesProgram = programFilter === 'All' || stat.program === programFilter;
       
       let matchesContext = false;
       if (stat.total > 0) {
@@ -260,9 +275,39 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         else if (filterType === 'cohort') matchesContext = (stat.cohort === filterValue);
       }
 
-      return matchesSearch && matchesContext;
+      return matchesSearch && matchesContext && matchesProgram;
     });
-  }, [aggregatedStats, searchTerm, filterType, filterValue]);
+    
+    // Sort
+    result.sort((a, b) => {
+      let aVal: any = a[sortField];
+      let bVal: any = b[sortField];
+      
+      // Handle string vs number sorting
+      if (typeof aVal === 'string') {
+        aVal = aVal.toLowerCase();
+        bVal = (bVal || '').toLowerCase();
+      }
+      
+      if (sortDirection === 'asc') {
+        return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+      } else {
+        return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+      }
+    });
+    
+    return result;
+  }, [aggregatedStats, searchTerm, filterType, filterValue, programFilter, sortField, sortDirection]);
+  
+  // Handle column header click for sorting
+  const handleSort = (field: 'name' | 'program' | 'completed' | 'noshow' | 'scheduled' | 'total') => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
   // --- Survey Metrics Logic ---
   const surveyMetrics = useMemo(() => {
@@ -473,6 +518,18 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-gray-400" />
+          <select
+            value={programFilter}
+            onChange={(e) => setProgramFilter(e.target.value)}
+            className="px-3 py-2 bg-boon-bg border-none rounded-lg text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-boon-blue/30"
+          >
+            {availablePrograms.map(prog => (
+              <option key={prog} value={prog}>{prog === 'All' ? 'All Programs' : prog}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Table */}
@@ -481,12 +538,72 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           <table className="w-full text-left">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Employee Name</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Program</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Completed</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">No-Shows</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Scheduled</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Total</th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('name')}
+                >
+                  <div className="flex items-center gap-1">
+                    Employee Name
+                    {sortField === 'name' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('program')}
+                >
+                  <div className="flex items-center gap-1">
+                    Program
+                    {sortField === 'program' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('completed')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Completed
+                    {sortField === 'completed' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('noshow')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    No-Shows
+                    {sortField === 'noshow' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('scheduled')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Scheduled
+                    {sortField === 'scheduled' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
+                <th 
+                  className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:bg-gray-100 transition"
+                  onClick={() => handleSort('total')}
+                >
+                  <div className="flex items-center justify-center gap-1">
+                    Total
+                    {sortField === 'total' && (
+                      <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
+                    )}
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
               </tr>
             </thead>
