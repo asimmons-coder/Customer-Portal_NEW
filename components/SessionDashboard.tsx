@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getDashboardSessions, getEmployeeRoster, getSurveyResponses } from '../lib/dataFetcher';
 import { SessionWithEmployee, Employee, SurveyResponse } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import { 
   Users, 
   Calendar, 
@@ -70,16 +71,34 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     const loadData = async () => {
       try {
         setLoading(true);
+        
+        // Get company from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
+        
         const [sessionsData, rosterData, surveyData] = await Promise.all([
           getDashboardSessions(),
           getEmployeeRoster(),
           getSurveyResponses()
         ]);
         
+        // Helper to check if a value matches the company
+        const matchesCompany = (value: string | undefined | null): boolean => {
+          if (!value || !company) return false;
+          const companyBase = company.split(' - ')[0].toLowerCase();
+          const valueBase = value.toLowerCase();
+          return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+        };
+        
         if (mounted) {
-          setSessions(sessionsData || []);
-          setEmployees(rosterData || []);
-          setSurveys(surveyData || []);
+          // Filter by company
+          const filteredSessions = sessionsData.filter(s => matchesCompany((s as any).account_name));
+          const filteredEmployees = rosterData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
+          const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account));
+          
+          setSessions(filteredSessions || []);
+          setEmployees(filteredEmployees || []);
+          setSurveys(filteredSurveys || []);
           setError(null);
         }
       } catch (err: any) {

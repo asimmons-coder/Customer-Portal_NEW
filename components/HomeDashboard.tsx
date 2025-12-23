@@ -64,8 +64,9 @@ const HomeDashboard: React.FC = () => {
         
         // Fetch Auth Session for Company Name and First Name
         const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user?.app_metadata?.company) {
-          setCompanyName(session.user.app_metadata.company);
+        const company = session?.user?.app_metadata?.company || '';
+        if (company) {
+          setCompanyName(company);
         }
         if (session?.user?.app_metadata?.first_name || session?.user?.user_metadata?.first_name) {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
@@ -79,15 +80,32 @@ const HomeDashboard: React.FC = () => {
           getWelcomeSurveyData(),
           getProgramConfig()
         ]);
-        setSessions(sessData);
-        setCompetencies(compData);
-        setSurveys(survData);
-        setEmployees(empData);
-        setBaselineData(baseData);
-        setProgramConfig(configData);
+        
+        // Helper to check if a value matches the company (case-insensitive, partial match)
+        const matchesCompany = (value: string | undefined | null): boolean => {
+          if (!value || !company) return false;
+          const companyBase = company.split(' - ')[0].toLowerCase();
+          const valueBase = value.toLowerCase();
+          return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+        };
+        
+        // Filter all data by company
+        const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name));
+        const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
+        const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account));
+        const filteredSurveys = survData.filter(s => matchesCompany((s as any).account));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account));
+        const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name));
+        
+        setSessions(filteredSessions);
+        setCompetencies(filteredCompetencies);
+        setSurveys(filteredSurveys);
+        setEmployees(filteredEmployees);
+        setBaselineData(filteredBaseline);
+        setProgramConfig(filteredConfig);
         
         // Fallback to data inference if auth metadata is missing
-        if (!session?.user?.app_metadata?.company && empData.length > 0 && empData[0].company) {
+        if (!company && empData.length > 0 && empData[0].company) {
              setCompanyName(empData[0].company);
         }
       } catch (err) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getWelcomeSurveyData } from '../lib/dataFetcher';
 import { WelcomeSurveyEntry } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
 import { 
   Users, 
@@ -45,9 +46,22 @@ const BaselineDashboard: React.FC = () => {
     const fetch = async () => {
       try {
         setLoading(true);
+        
+        // Get company from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
+        const companyBase = company.split(' - ')[0].toLowerCase();
+        
         const result = await getWelcomeSurveyData();
-        console.log("Raw Baseline Data:", result); // Debug log
-        setData(result);
+        
+        // Filter by company
+        const filteredResult = result.filter(b => {
+          const account = ((b as any).account || '').toLowerCase();
+          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
+        });
+        
+        console.log("Raw Baseline Data:", filteredResult); // Debug log
+        setData(filteredResult);
       } catch (err: any) {
         setError(err.message || 'Failed to load survey data');
       } finally {

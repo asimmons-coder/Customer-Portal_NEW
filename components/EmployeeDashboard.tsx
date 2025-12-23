@@ -67,7 +67,15 @@ const EmployeeDashboard: React.FC = () => {
           .order('last_name', { ascending: true });
 
         if (error) throw error;
-        setEmployees(data || []);
+        
+        // Filter by company
+        const companyBase = company.split(' - ')[0].toLowerCase();
+        const filteredData = (data || []).filter(e => {
+          const empCompany = (e.company_name || e.company || '').toLowerCase();
+          return empCompany.includes(companyBase) || companyBase.includes(empCompany.split(' - ')[0]);
+        });
+        
+        setEmployees(filteredData);
       } catch (err: any) {
         console.error('Error fetching employees:', err);
         setError(err.message);

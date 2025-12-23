@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getCompetencyScores, getWelcomeSurveyData } from '../lib/dataFetcher';
 import { CompetencyScore, WelcomeSurveyEntry } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
 import { BarChart, AlertCircle, Clock, Info } from 'lucide-react';
 
@@ -72,12 +73,29 @@ const ImpactDashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Get company from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
+        const companyBase = company.split(' - ')[0].toLowerCase();
+        
         const [compData, baseData] = await Promise.all([
           getCompetencyScores(),
           getWelcomeSurveyData()
         ]);
-        setScores(compData);
-        setBaselineData(baseData);
+        
+        // Filter by company
+        const matchesCompany = (value: string | undefined | null): boolean => {
+          if (!value || !company) return false;
+          const valueBase = value.toLowerCase();
+          return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+        };
+        
+        const filteredScores = compData.filter(c => matchesCompany((c as any).account));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account));
+        
+        setScores(filteredScores);
+        setBaselineData(filteredBaseline);
       } catch (err: any) {
         setError(err.message || 'Failed to load competency data');
       } finally {

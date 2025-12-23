@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { getDashboardSessions } from '../lib/dataFetcher';
 import { SessionWithEmployee } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import { 
   Lightbulb, 
   Filter, 
@@ -33,8 +34,21 @@ const ThemesDashboard: React.FC = () => {
     const fetchSessions = async () => {
       try {
         setLoading(true);
+        
+        // Get company from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
+        
         const data = await getDashboardSessions();
-        setSessions(data);
+        
+        // Filter by company
+        const companyBase = company.split(' - ')[0].toLowerCase();
+        const filteredData = data.filter(s => {
+          const sessionAccount = ((s as any).account_name || '').toLowerCase();
+          return sessionAccount.includes(companyBase) || companyBase.includes(sessionAccount.split(' - ')[0]);
+        });
+        
+        setSessions(filteredData);
       } catch (err: any) {
         setError(err.message || 'Failed to load session data');
       } finally {
