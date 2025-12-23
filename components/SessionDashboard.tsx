@@ -83,16 +83,29 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         ]);
         
         // Helper to check if a value matches the company
-        const matchesCompany = (value: string | undefined | null): boolean => {
-          if (!value || !company) return false;
+        const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
+          if (!company) return false;
           const companyBase = company.split(' - ')[0].toLowerCase();
+          
+          // Check if program_title starts with TWC (for Wonderful Company)
+          if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
+            return true;
+          }
+          
+          if (!value) return false;
           const valueBase = value.toLowerCase();
+          
+          // Special case: Wonderful Orchards is part of The Wonderful Company
+          if (companyBase.includes('wonderful') && valueBase.includes('wonderful')) {
+            return true;
+          }
+          
           return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
         };
         
         if (mounted) {
           // Filter by company
-          const filteredSessions = sessionsData.filter(s => matchesCompany((s as any).account_name));
+          const filteredSessions = sessionsData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
           const filteredEmployees = rosterData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
           const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account));
           
