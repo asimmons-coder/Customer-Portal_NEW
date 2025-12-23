@@ -218,7 +218,7 @@ const HomeDashboard: React.FC = () => {
 
     const utilizationRate = 100; 
 
-    // Filter surveys
+    // Filter surveys by program_title (for accurate NPS/CSAT per cohort)
     const validEmails = new Set(
         enrolledEmployees.map(e => e.email?.toLowerCase()).filter(Boolean)
     );
@@ -226,16 +226,18 @@ const HomeDashboard: React.FC = () => {
     const cohortSurveys = surveys.filter(s => {
         if (!s.email) return false;
         
-        // Fix: Show all surveys in "All Cohorts" view even if they don't match the current roster
+        // For "All Cohorts", include all surveys
         if (isAll) return true;
 
-        if (employees.length === 0) return true; 
+        // First try to match by program_title
+        const surveyProgram = normalize((s as any).program_title || '');
+        if (surveyProgram && surveyProgram === selNorm) return true;
         
-        // If roster is incomplete (less than session participants), we include all matching surveys 
-        // to avoid hiding data for employees not yet in the roster table.
-        // This applies to both specific cohorts and "All Cohorts".
+        // Fallback to email matching if no program_title
+        if (employees.length === 0) return true; 
         if (enrolledEmployees.length < totalEmployeesCount) {
-             return true; 
+             // Check if email belongs to this cohort's employees
+             return validEmails.has(s.email.toLowerCase());
         }
         return validEmails.has(s.email.toLowerCase());
     });
@@ -359,23 +361,46 @@ const HomeDashboard: React.FC = () => {
     .slice(0, 5);
 
     const getQualityQuotes = (data: any[]) => {
-      return data
-        .filter(d => {
-            const text = d.feedback_learned || d.feedback_insight || d.feedback_suggestions;
+      const allQuotes = data
+        .flatMap(d => [d.feedback_learned, d.feedback_insight, d.feedback_suggestions].filter(Boolean))
+        .filter(text => {
             if (!text || text.length < 50) return false;
             const lower = text.toLowerCase();
-            if (lower.includes("i don't know") || lower.includes("not sure") || lower.includes("nothing")) return false;
-            if (lower.match(/^(great|good|nice|helpful)$/)) return false;
+            // Filter out low-quality responses
+            if (lower.includes("i don't know") || lower.includes("not sure") || lower.includes("nothing") || lower.includes("n/a")) return false;
+            if (lower.match(/^(great|good|nice|helpful|none|no)\.?$/i)) return false;
             return true;
+        });
+      
+      // Deduplicate quotes
+      const uniqueQuotes = [...new Set(allQuotes)];
+      
+      // Score and sort by quality (positive action words, length, specificity)
+      return uniqueQuotes
+        .map(text => {
+            const lower = text.toLowerCase();
+            let score = 0;
+            
+            // Positive action words (high value)
+            const positiveWords = ['learned', 'improved', 'helped', 'valuable', 'great', 'excellent', 'amazing', 'love', 'appreciate', 'thankful', 'growth', 'better', 'successful'];
+            score += positiveWords.filter(w => lower.includes(w)).length * 3;
+            
+            // Action/insight words (medium value)
+            const actionWords = ['now', 'started', 'stopped', 'realized', 'developed', 'changed', 'understand', 'able to', 'confident'];
+            score += actionWords.filter(w => lower.includes(w)).length * 2;
+            
+            // Penalize negative/critical feedback
+            const negativeWords = ['wish', 'would be better', 'didn\'t', 'wasn\'t', 'couldn\'t', 'should', 'more time', 'too short'];
+            score -= negativeWords.filter(w => lower.includes(w)).length * 2;
+            
+            // Bonus for good length (not too short, not too long)
+            if (text.length >= 100 && text.length <= 500) score += 2;
+            
+            return { text, score };
         })
-        .map(d => d.feedback_learned || d.feedback_insight || d.feedback_suggestions)
-        .sort((a, b) => {
-            const actionWords = ['learned', 'now', 'started', 'stopped', 'realized', 'developed', 'changed', 'improved'];
-            const aScore = actionWords.filter(w => a.toLowerCase().includes(w)).length;
-            const bScore = actionWords.filter(w => b.toLowerCase().includes(w)).length;
-            return bScore - aScore;
-        })
-        .slice(0, 3);
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3)
+        .map(q => q.text);
     };
 
     let quotes: string[] = [];
@@ -797,3 +822,4 @@ const BaselineMetric = ({ label, value }: { label: string, value: number }) => (
 );
 
 export default HomeDashboard;
+
