@@ -82,15 +82,28 @@ const HomeDashboard: React.FC = () => {
         ]);
         
         // Helper to check if a value matches the company (case-insensitive, partial match)
-        const matchesCompany = (value: string | undefined | null): boolean => {
-          if (!value || !company) return false;
+        const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
+          if (!company) return false;
           const companyBase = company.split(' - ')[0].toLowerCase();
+          
+          // Check if program_title starts with TWC (for Wonderful Company)
+          if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
+            return true;
+          }
+          
+          if (!value) return false;
           const valueBase = value.toLowerCase();
+          
+          // Special case: Wonderful Orchards is part of The Wonderful Company
+          if (companyBase.includes('wonderful') && valueBase.includes('wonderful')) {
+            return true;
+          }
+          
           return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
         };
         
         // Filter all data by company
-        const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name));
+        const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
         const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account));
         const filteredSurveys = survData.filter(s => matchesCompany((s as any).account));
@@ -461,8 +474,9 @@ const HomeDashboard: React.FC = () => {
       />
 
       {/* Hero Section */}
-      {stats.isCompleted ? (
-        // COMPLETED HERO
+      {/* Show improvement hero if we have competency data with growth, otherwise show progress */}
+      {stats.participantCount >= 3 && stats.growthPct > 0 ? (
+        // IMPROVEMENT HERO - Show when we have competency data
         <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-boon-green"></div>
             <h2 className="text-xl md:text-2xl text-gray-600 font-medium mb-4">Your team improved</h2>
@@ -475,7 +489,7 @@ const HomeDashboard: React.FC = () => {
             </p>
         </div>
       ) : (
-        // IN-PROGRESS HERO
+        // IN-PROGRESS HERO - Show progress percentage when no competency data yet
         <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-boon-blue"></div>
             <h2 className="text-xl md:text-2xl text-gray-600 font-medium mb-4">Your team is</h2>
@@ -556,8 +570,9 @@ const HomeDashboard: React.FC = () => {
               </div>
             )}
 
-            {stats.isCompleted ? (
-                // COMPLETED: Growth Areas
+            {/* Show Growth Areas if we have competency improvement data, otherwise show Themes */}
+            {stats.participantCount >= 3 && stats.growthPct > 0 ? (
+                // HAS COMPETENCY DATA: Growth Areas
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                    <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
@@ -582,7 +597,7 @@ const HomeDashboard: React.FC = () => {
                     )}
                 </div>
             ) : (
-                // IN-PROGRESS: Themes Snapshot
+                // NO COMPETENCY DATA YET: Themes Snapshot
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
@@ -599,8 +614,8 @@ const HomeDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* Baseline Snapshot (Reordered: Competencies First) */}
-            {!stats.isCompleted && (
+            {/* Baseline Snapshot - show when no competency improvement data yet */}
+            {!(stats.participantCount >= 3 && stats.growthPct > 0) && (
                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
@@ -656,7 +671,7 @@ const HomeDashboard: React.FC = () => {
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                 <h3 className="text-lg font-bold text-boon-dark mb-6 flex items-center gap-2">
                    <MessageSquare className="w-5 h-5 text-boon-blue" /> 
-                   {stats.isCompleted ? "In Their Own Words" : "Early Feedback"}
+                   {(stats.participantCount >= 3 && stats.growthPct > 0) ? "In Their Own Words" : "Early Feedback"}
                 </h3>
                 {stats.quotes.length > 0 ? (
                     <div className="space-y-4">

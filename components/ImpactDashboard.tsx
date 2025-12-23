@@ -117,17 +117,21 @@ const ImpactDashboard: React.FC = () => {
     const normalize = (str: string) => (str || '').toLowerCase().trim();
     const selNorm = normalize(selectedProgram);
 
-    // 1. Determine Unique Programs from BOTH sources
+    // 1. Determine Unique Programs from BOTH sources (prefer program_title)
     const uniquePrograms = ['All Programs', ...new Set([
-        ...scores.map(s => s.program),
-        ...baselineData.map(b => b.cohort)
+        ...scores.map(s => (s as any).program_title || s.program),
+        ...baselineData.map(b => (b as any).program_title || b.cohort)
     ].filter(Boolean))].sort();
 
 
     // 2. Filter Impact Data by Program
     const filteredScores = selectedProgram === 'All Programs' 
       ? scores 
-      : scores.filter(s => normalize(s.program) === selNorm);
+      : scores.filter(s => {
+          const pt = normalize((s as any).program_title || '');
+          const p = normalize(s.program || '');
+          return pt === selNorm || p === selNorm;
+        });
 
     // 3. Aggregate by Competency (Impact)
     const compMap = new Map<string, { name: string, sumPre: number, sumPost: number, count: number }>();
@@ -188,10 +192,11 @@ const ImpactDashboard: React.FC = () => {
         const filteredBaseline = selectedProgram === 'All Programs'
             ? baselineData
             : baselineData.filter(b => {
+                 const bPt = normalize((b as any).program_title || '');
                  const bCoh = normalize(b.cohort);
                  const bComp = normalize(b.company);
                  // Relaxed matching for baseline data
-                 return bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
+                 return bPt === selNorm || bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
             });
             
         baselineStats = Object.entries(COMPETENCY_MAP).map(([key, label]) => {
@@ -207,7 +212,6 @@ const ImpactDashboard: React.FC = () => {
         .filter(c => c.avg > 0)
         .sort((a, b) => b.avg - a.avg); // Sort highest baseline first (usually 'strengths') or swap to see gaps
     }
-
 
     return {
       programs: uniquePrograms,
