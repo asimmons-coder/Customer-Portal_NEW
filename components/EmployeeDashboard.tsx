@@ -24,6 +24,8 @@ interface Employee {
   company_email: string;
   company_name: string;
   program: string;
+  program_title?: string;
+  salesforce_program_id?: string;
   department: string;
   job_title: string;
   company_role: string;
@@ -60,20 +62,39 @@ const EmployeeDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
-        const { data, error } = await supabase
-          .from('employee_manager')
-          .select('*')
-          .neq('company_email', 'asimmons@boon-health.com') // Filter out test user
-          .order('last_name', { ascending: true });
+        // Fetch employees and program config
+        const [empResult, configResult] = await Promise.all([
+          supabase
+            .from('employee_manager')
+            .select('*')
+            .neq('company_email', 'asimmons@boon-health.com')
+            .order('last_name', { ascending: true }),
+          supabase
+            .from('program_config')
+            .select('salesforce_program_id, program_title')
+        ]);
 
-        if (error) throw error;
+        if (empResult.error) throw empResult.error;
         
-        // Filter by company
-        const companyBase = company.split(' - ')[0].toLowerCase();
-        const filteredData = (data || []).filter(e => {
-          const empCompany = (e.company_name || e.company || '').toLowerCase();
-          return empCompany.includes(companyBase) || companyBase.includes(empCompany.split(' - ')[0]);
+        // Create lookup map for program_title
+        const programTitleMap = new Map<string, string>();
+        (configResult.data || []).forEach(p => {
+          if (p.salesforce_program_id && p.program_title) {
+            programTitleMap.set(p.salesforce_program_id, p.program_title);
+          }
         });
+        
+        // Filter by company and add program_title
+        const companyBase = company.split(' - ')[0].toLowerCase();
+        const filteredData = (empResult.data || [])
+          .filter(e => {
+            const empCompany = (e.company_name || e.company || '').toLowerCase();
+            return empCompany.includes(companyBase) || companyBase.includes(empCompany.split(' - ')[0]);
+          })
+          .map(e => ({
+            ...e,
+            program_title: e.salesforce_program_id ? programTitleMap.get(e.salesforce_program_id) : undefined
+          }));
         
         setEmployees(filteredData);
       } catch (err: any) {
@@ -87,9 +108,9 @@ const EmployeeDashboard: React.FC = () => {
     fetchEmployees();
   }, []);
 
-  // Get unique programs for filter
+  // Get unique programs for filter (prefer program_title)
   const programs = useMemo(() => {
-    const uniquePrograms = [...new Set(employees.map(e => e.program).filter(Boolean))];
+    const uniquePrograms = [...new Set(employees.map(e => e.program_title || e.program).filter(Boolean))];
     return ['All', ...uniquePrograms.sort()];
   }, [employees]);
 
@@ -100,7 +121,8 @@ const EmployeeDashboard: React.FC = () => {
         const matchesSearch = 
           `${emp.first_name} ${emp.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
           emp.company_email?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesProgram = filterProgram === 'All' || emp.program === filterProgram;
+        const empProgram = emp.program_title || emp.program;
+        const matchesProgram = filterProgram === 'All' || empProgram === filterProgram;
         return matchesSearch && matchesProgram;
       })
       .sort((a, b) => {
@@ -340,9 +362,9 @@ const EmployeeDashboard: React.FC = () => {
                     <div className="text-sm text-gray-600 mb-3 space-y-1">
                        <p className="truncate">{emp.company_email}</p>
                        <div className="flex items-center gap-2">
-                          {emp.program && (
-                             <span className="px-2 py-0.5 rounded text-xs font-bold bg-boon-blue/10 text-boon-blue uppercase">
-                               {emp.program}
+                          {(emp.program_title || emp.program) && (
+                             <span className="px-2 py-0.5 rounded text-xs font-bold bg-boon-blue/10 text-boon-blue">
+                               {emp.program_title || emp.program}
                              </span>
                           )}
                           <span className="text-gray-400">•</span>
@@ -430,9 +452,9 @@ const EmployeeDashboard: React.FC = () => {
                         <span className="text-gray-600 text-sm">{emp.company_email || '-'}</span>
                       </td>
                       <td className="px-6 py-4">
-                        {emp.program ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-boon-blue/10 text-boon-blue uppercase">
-                            {emp.program}
+                        {(emp.program_title || emp.program) ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-boon-blue/10 text-boon-blue">
+                            {emp.program_title || emp.program}
                           </span>
                         ) : (
                           <span className="text-gray-300">-</span>

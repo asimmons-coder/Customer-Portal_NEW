@@ -119,7 +119,8 @@ const HomeDashboard: React.FC = () => {
 
   // --- Derived Cohort List ---
   const cohorts = useMemo(() => {
-    const sessionCohorts = sessions.map(s => s.program_name || s.cohort || s.program).filter(Boolean);
+    // Prefer program_title (human-readable), fallback to program_name
+    const sessionCohorts = sessions.map(s => (s as any).program_title || s.program_name || s.cohort || s.program).filter(Boolean);
     const unique = Array.from(new Set(sessionCohorts)).sort();
     return ['All Cohorts', ...unique];
   }, [sessions]);
@@ -139,10 +140,11 @@ const HomeDashboard: React.FC = () => {
     // 1. Filter sessions to the selected cohort
     const cohortSessions = sessions.filter(s => {
         if (isAll) return true;
+        const pTitle = normalize((s as any).program_title || '');
         const pName = normalize(s.program_name || '');
         const cName = normalize(s.cohort || '');
         const pCode = normalize(s.program || '');
-        return pName === selNorm || cName === selNorm || pCode === selNorm;
+        return pTitle === selNorm || pName === selNorm || cName === selNorm || pCode === selNorm;
     });
 
     // 2. Identify employees who have sessions in this cohort (Active Participants)
@@ -155,10 +157,11 @@ const HomeDashboard: React.FC = () => {
     // 3. Roster for Surveys/Other lookups
     const enrolledEmployees = employees.filter(e => {
         if (isAll) return true;
+        const pt = normalize((e as any).program_title || '');
         const p = normalize(e.program || '');
         const pn = normalize(e.program_name || '');
         const c = normalize(e.cohort || '');
-        return p === selNorm || pn === selNorm || c === selNorm;
+        return pt === selNorm || p === selNorm || pn === selNorm || c === selNorm;
     });
 
     // --- Metrics Calculation ---
@@ -174,7 +177,9 @@ const HomeDashboard: React.FC = () => {
     // Filter competencies
     const cohortCompetencies = competencies.filter(c => {
         if (isAll) return true;
-        return normalize(c.program) === selNorm;
+        const pt = normalize((c as any).program_title || '');
+        const p = normalize(c.program || '');
+        return pt === selNorm || p === selNorm;
     });
 
     // Determine if Cohort is Completed
@@ -235,9 +240,10 @@ const HomeDashboard: React.FC = () => {
     
     const cohortBaseline = baselineData.filter(b => {
         if (isAll) return true;
+        const bPt = normalize((b as any).program_title || '');
         const bCoh = normalize(b.cohort);
         const bComp = normalize(b.company);
-        return bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
+        return bPt === selNorm || bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
     });
 
     const focusMapping: Record<string, string> = {

@@ -156,7 +156,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       statsMap.set(key, {
         id: emp.id,
         name: name,
-        program: emp.program || emp.program_name || 'Unassigned',
+        program: (emp as any).program_title || emp.program || emp.program_name || 'Unassigned',
         cohort: emp.cohort || emp.program_name || '', 
         avatar_url: emp.avatar_url,
         completed: 0,
@@ -179,7 +179,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       if (session.employee_id && hiddenEmployees.has(String(session.employee_id))) return;
       
       const key = name.toLowerCase();
-      const sessionProgram = session.program_name || session.program || '';
+      const sessionProgram = (session as any).program_title || session.program_name || session.program || '';
       const sessionCohort = session.cohort || session.program_name || '';
 
       let includeSession = true;
