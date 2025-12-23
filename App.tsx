@@ -110,15 +110,17 @@ const MainPortalLayout: React.FC = () => {
         }
         setProgramTypeLoading(false);
 
+        // Fetch program titles for sidebar (filter by company)
         const { data, error } = await supabase
           .from('session_tracking')
-          .select('program_name');
+          .select('program_title')
+          .ilike('account_name', `%${company.split(' - ')[0]}%`);
 
         if (error) throw error;
 
         if (data) {
           const uniquePrograms = [...new Set(
-            data.map(d => d.program_name)
+            data.map(d => d.program_title)
               .filter(p => p && p.trim().length > 0)
           )] as string[];
           setPrograms(uniquePrograms.sort());
