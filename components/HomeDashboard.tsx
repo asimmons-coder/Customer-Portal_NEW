@@ -294,7 +294,8 @@ const HomeDashboard: React.FC = () => {
       .slice(0, 5);
 
     const compMap = new Map<string, { sumPre: number, sumPost: number, count: number }>();
-    cohortCompetencies.forEach(c => {
+    // Only use competency records with BOTH pre AND post scores
+    participantsWithBothScores.forEach(c => {
         if (!compMap.has(c.competency)) compMap.set(c.competency, { sumPre: 0, sumPost: 0, count: 0});
         const entry = compMap.get(c.competency)!;
         entry.sumPre += c.pre;
@@ -307,7 +308,7 @@ const HomeDashboard: React.FC = () => {
         const avgPost = data.sumPost / data.count;
         const pct = avgPre > 0 ? ((avgPost - avgPre) / avgPre) * 100 : 0;
         return { name, avgPre, avgPost, pct };
-    }).sort((a, b) => b.pct - a.pct).slice(0, 3);
+    }).filter(s => s.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3); // Only show positive growth
 
     const themeCounts: Record<string, number> = { mental: 0, leadership: 0, comms: 0 };
     cohortSessions.forEach(s => {
