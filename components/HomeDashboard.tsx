@@ -361,14 +361,16 @@ const HomeDashboard: React.FC = () => {
     .slice(0, 5);
 
     const getQualityQuotes = (data: any[]) => {
+      // Only use feedback_learned and feedback_insight (positive feedback)
+      // Exclude feedback_suggestions (improvement/criticism)
       const allQuotes = data
-        .flatMap(d => [d.feedback_learned, d.feedback_insight, d.feedback_suggestions].filter(Boolean))
+        .flatMap(d => [d.feedback_learned, d.feedback_insight].filter(Boolean))
         .filter(text => {
             if (!text || text.length < 50) return false;
             const lower = text.toLowerCase();
             // Filter out low-quality responses
             if (lower.includes("i don't know") || lower.includes("not sure") || lower.includes("nothing") || lower.includes("n/a")) return false;
-            if (lower.match(/^(great|good|nice|helpful|none|no)\.?$/i)) return false;
+            if (lower.match(/^(great|good|nice|helpful|none|no|null|na)\.?$/i)) return false;
             return true;
         });
       
@@ -382,16 +384,16 @@ const HomeDashboard: React.FC = () => {
             let score = 0;
             
             // Positive action words (high value)
-            const positiveWords = ['learned', 'improved', 'helped', 'valuable', 'great', 'excellent', 'amazing', 'love', 'appreciate', 'thankful', 'growth', 'better', 'successful'];
+            const positiveWords = ['learned', 'improved', 'helped', 'valuable', 'great', 'excellent', 'amazing', 'love', 'appreciate', 'thankful', 'growth', 'better', 'successful', 'insightful', 'effective', 'fantastic', 'recommended'];
             score += positiveWords.filter(w => lower.includes(w)).length * 3;
             
             // Action/insight words (medium value)
-            const actionWords = ['now', 'started', 'stopped', 'realized', 'developed', 'changed', 'understand', 'able to', 'confident'];
+            const actionWords = ['now', 'started', 'stopped', 'realized', 'developed', 'changed', 'understand', 'able to', 'confident', 'equipped', 'techniques', 'strategies'];
             score += actionWords.filter(w => lower.includes(w)).length * 2;
             
             // Penalize negative/critical feedback
-            const negativeWords = ['wish', 'would be better', 'didn\'t', 'wasn\'t', 'couldn\'t', 'should', 'more time', 'too short'];
-            score -= negativeWords.filter(w => lower.includes(w)).length * 2;
+            const negativeWords = ['wish', 'would be better', 'didn\'t', 'wasn\'t', 'couldn\'t', 'should have', 'more time', 'too short', 'longer'];
+            score -= negativeWords.filter(w => lower.includes(w)).length * 3;
             
             // Bonus for good length (not too short, not too long)
             if (text.length >= 100 && text.length <= 500) score += 2;
@@ -403,12 +405,8 @@ const HomeDashboard: React.FC = () => {
         .map(q => q.text);
     };
 
-    let quotes: string[] = [];
-    if (isCompleted) {
-        quotes = getQualityQuotes(cohortCompetencies);
-    } else {
-        quotes = getQualityQuotes(cohortSurveys);
-    }
+    // Always use surveys for feedback quotes (that's where feedback text is stored)
+    let quotes: string[] = getQualityQuotes(cohortSurveys);
 
     const getRecentActivity = (sessions: SessionWithEmployee[]) => {
         const sorted = sessions
@@ -822,4 +820,3 @@ const BaselineMetric = ({ label, value }: { label: string, value: number }) => (
 );
 
 export default HomeDashboard;
-
