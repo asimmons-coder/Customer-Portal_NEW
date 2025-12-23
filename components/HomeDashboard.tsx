@@ -195,8 +195,9 @@ const HomeDashboard: React.FC = () => {
         return pt === selNorm || p === selNorm;
     });
 
-    // Determine if Cohort is Completed
-    const participantCount = new Set(cohortCompetencies.map(c => c.email)).size;
+    // Determine if Cohort is Completed - count only participants with BOTH pre AND post scores
+    const participantsWithBothScores = cohortCompetencies.filter(c => c.pre > 0 && c.post > 0);
+    const participantCount = new Set(participantsWithBothScores.map(c => c.email)).size;
     const isCompleted = !isAll && participantCount >= 5;
 
     // Get Session Count from Config
@@ -210,8 +211,9 @@ const HomeDashboard: React.FC = () => {
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
     const progressPct = targetSessions > 0 ? Math.min(100, Math.round((completedSessionsCount / targetSessions) * 100)) : 0;
 
-    const totalPre = cohortCompetencies.reduce((acc, curr) => acc + (curr.pre || 0), 0);
-    const totalPost = cohortCompetencies.reduce((acc, curr) => acc + (curr.post || 0), 0);
+    // Calculate growth from competency scores (only using rows with BOTH pre AND post)
+    const totalPre = participantsWithBothScores.reduce((acc, curr) => acc + curr.pre, 0);
+    const totalPost = participantsWithBothScores.reduce((acc, curr) => acc + curr.post, 0);
     const growthPct = totalPre > 0 ? ((totalPost - totalPre) / totalPre) * 100 : 0;
 
     const utilizationRate = 100; 
