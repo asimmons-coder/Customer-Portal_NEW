@@ -63,16 +63,24 @@ const BaselineDashboard: React.FC = () => {
         const filteredResult = result.filter(b => {
           const account = ((b as any).account || '').toLowerCase();
           const programTitle = ((b as any).program_title || '').toLowerCase();
-          // Check TWC prefix for Wonderful Company
-          if (companyBase.includes('wonderful') && programTitle.startsWith('twc')) {
-            return true;
+          
+          // For Wonderful Company, only include TWC programs (exclude FSNA, etc.)
+          if (companyBase.includes('wonderful')) {
+            return programTitle.startsWith('twc');
           }
+          
           return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
         });
         
-        // Filter program config by company
+        // Filter program config by company (also exclude non-TWC for Wonderful)
         const filteredConfig = configData.filter(p => {
           const accountName = (p.account_name || '').toLowerCase();
+          const programTitle = (p.program_title || '').toLowerCase();
+          
+          if (companyBase.includes('wonderful')) {
+            return programTitle.startsWith('twc');
+          }
+          
           return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
         });
         
@@ -187,13 +195,15 @@ const BaselineDashboard: React.FC = () => {
         }));
     };
 
-    // Analyze coaching goals for themes
+    // Analyze coaching goals for themes (including Leader Essentials topics)
     const analyzeCoachingGoals = (entries: WelcomeSurveyEntry[]) => {
+      const themeCounts: Record<string, number> = {};
+      let totalResponses = 0;
+      
+      // Process free-text coaching goals
       const goals = entries
         .map(e => (e as any).coaching_goals)
         .filter(g => g && typeof g === 'string' && g.length > 20);
-      
-      if (goals.length === 0) return [];
       
       const themePatterns: Record<string, string[]> = {
         'Leadership Skills': ['leadership', 'lead', 'leader', 'managing people', 'manage team'],
@@ -208,7 +218,6 @@ const BaselineDashboard: React.FC = () => {
         'Managing Up': ['managing up', 'stakeholder', 'executive', 'senior leader'],
       };
       
-      const themeCounts: Record<string, number> = {};
       for (const goal of goals) {
         const lower = goal.toLowerCase();
         for (const [theme, patterns] of Object.entries(themePatterns)) {
@@ -217,9 +226,31 @@ const BaselineDashboard: React.FC = () => {
           }
         }
       }
+      totalResponses += goals.length;
+      
+      // Process Leader Essentials structured topics
+      const leTopics = entries
+        .map(e => (e as any).leader_essentials_topics)
+        .filter(t => t && typeof t === 'string');
+      
+      for (const topicStr of leTopics) {
+        const topics = topicStr.split(',').map((t: string) => t.trim());
+        for (const topic of topics) {
+          if (topic === 'Influencing Others') {
+            themeCounts['Influencing Others'] = (themeCounts['Influencing Others'] || 0) + 1;
+          } else if (topic === 'Developing Team') {
+            themeCounts['Developing Team'] = (themeCounts['Developing Team'] || 0) + 1;
+          } else if (topic === 'Leading Change') {
+            themeCounts['Leading Change'] = (themeCounts['Leading Change'] || 0) + 1;
+          }
+        }
+      }
+      if (leTopics.length > 0) totalResponses += leTopics.length;
+      
+      if (totalResponses === 0) return [];
       
       return Object.entries(themeCounts)
-        .map(([theme, count]) => ({ theme, count, pct: (count / goals.length) * 100 }))
+        .map(([theme, count]) => ({ theme, count, pct: (count / totalResponses) * 100 }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
     };
@@ -358,6 +389,7 @@ const BaselineDashboard: React.FC = () => {
                 <div className="xl:col-span-2 space-y-8">
                     
                     {/* Competency Chart (Now First) */}
+                    {stats.competencies.length > 0 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                          <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                             <BarChart className="w-4 h-4 text-boon-blue" /> Competency Self-Ratings (1-5)
@@ -388,8 +420,10 @@ const BaselineDashboard: React.FC = () => {
                              <span>5</span>
                         </div>
                     </div>
+                    )}
 
                     {/* Wellbeing Chart (Now Second) */}
+                    {stats.wellbeing.some(item => item.hasData) && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
                             <Smile className="w-4 h-4 text-boon-green" /> Wellbeing Baseline (1-10)
@@ -422,6 +456,7 @@ const BaselineDashboard: React.FC = () => {
                             ))}
                         </div>
                     </div>
+                    )}
 
                     {/* Coaching Goals Themes */}
                     {stats.coachingGoals && stats.coachingGoals.length > 0 && (
@@ -451,7 +486,7 @@ const BaselineDashboard: React.FC = () => {
                             ))}
                         </div>
                         <p className="text-xs text-gray-400 mt-4 italic">
-                            Based on {data.filter(d => (d as any).coaching_goals).length} participant responses
+                            Based on {filteredData.filter(d => (d as any).coaching_goals).length} participant responses
                         </p>
                     </div>
                     )}
