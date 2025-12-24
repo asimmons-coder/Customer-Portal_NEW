@@ -735,11 +735,20 @@ const SimpleTrendChart = ({ sessions, filterType, filterValue }: { sessions: Ses
     if (sessions.length === 0) return [];
 
     const filteredSessions = sessions.filter(s => {
-      if (filterType === 'all') return true;
-      const sessionProgram = s.program_name || s.program || '';
-      if (filterType === 'program') return sessionProgram === filterValue;
+      if (filterType === 'all' && programFilter === 'All') return true;
+      
+      // Use program_title for filtering
+      const sessionProgram = (s as any).program_title || s.program_name || s.program || '';
+      
+      // Check sidebar filter
+      if (filterType === 'program' && sessionProgram !== filterValue) return false;
+      
+      // Check dropdown filter
+      if (programFilter !== 'All' && sessionProgram !== programFilter) return false;
+      
       const sessionCohort = s.cohort || s.program_name;
-      if (filterType === 'cohort') return sessionCohort === filterValue;
+      if (filterType === 'cohort' && sessionCohort !== filterValue) return false;
+      
       return true;
     });
 
@@ -767,7 +776,7 @@ const SimpleTrendChart = ({ sessions, filterType, filterValue }: { sessions: Ses
          value: monthlyCounts[key]
        };
     });
-  }, [sessions, filterType, filterValue]);
+  }, [sessions, filterType, filterValue, programFilter]);
 
   if (chartData.length === 0) {
      return <div className="flex items-center justify-center h-full text-gray-400 text-xs uppercase font-bold">No completed sessions found</div>;
