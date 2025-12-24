@@ -149,6 +149,185 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     }
   };
 
+  // --- Fuzzy Name Matching Helpers ---
+  // Normalize name for fuzzy matching (handles Brad/Bradley, Eddie/Edward, etc.)
+  const normalizeNameForMatching = (name: string): string => {
+    const lower = name.toLowerCase().trim();
+    
+    // Common nickname mappings
+    const nicknames: Record<string, string> = {
+      'brad': 'bradley',
+      'ed': 'edward',
+      'eddie': 'edward',
+      'ted': 'theodore',
+      'teddy': 'theodore',
+      'mike': 'michael',
+      'bill': 'william',
+      'bob': 'robert',
+      'rob': 'robert',
+      'jim': 'james',
+      'jimmy': 'james',
+      'joe': 'joseph',
+      'joey': 'joseph',
+      'tom': 'thomas',
+      'tommy': 'thomas',
+      'dick': 'richard',
+      'rick': 'richard',
+      'rich': 'richard',
+      'dan': 'daniel',
+      'danny': 'daniel',
+      'dave': 'david',
+      'davy': 'david',
+      'steve': 'steven',
+      'chris': 'christopher',
+      'matt': 'matthew',
+      'pat': 'patrick',
+      'nick': 'nicholas',
+      'tony': 'anthony',
+      'andy': 'andrew',
+      'drew': 'andrew',
+      'alex': 'alexander',
+      'sam': 'samuel',
+      'sammy': 'samuel',
+      'ben': 'benjamin',
+      'benny': 'benjamin',
+      'charlie': 'charles',
+      'chuck': 'charles',
+      'frank': 'francis',
+      'frankie': 'francis',
+      'jack': 'john',
+      'johnny': 'john',
+      'ken': 'kenneth',
+      'kenny': 'kenneth',
+      'larry': 'lawrence',
+      'pete': 'peter',
+      'will': 'william',
+      'willy': 'william',
+      'liz': 'elizabeth',
+      'beth': 'elizabeth',
+      'kate': 'katherine',
+      'katie': 'katherine',
+      'kathy': 'katherine',
+      'jen': 'jennifer',
+      'jenny': 'jennifer',
+      'sue': 'susan',
+      'suzy': 'susan',
+      'meg': 'margaret',
+      'peggy': 'margaret',
+      'maggie': 'margaret',
+      'vicky': 'victoria',
+      'vic': 'victoria',
+      'debbie': 'deborah',
+      'deb': 'deborah',
+      'becky': 'rebecca',
+      'kim': 'kimberly',
+      'kimmy': 'kimberly',
+    };
+    
+    // Split into parts
+    const parts = lower.split(/\s+/);
+    const normalizedParts = parts.map(part => nicknames[part] || part);
+    
+    return normalizedParts.join(' ');
+  };
+
+  // Calculate similarity between two strings (for last name typos like Sorenson/Sorensen)
+  const calculateSimilarity = (str1: string, str2: string): number => {
+    const s1 = str1.toLowerCase();
+    const s2 = str2.toLowerCase();
+    
+    if (s1 === s2) return 1;
+    if (s1.length === 0 || s2.length === 0) return 0;
+    
+    // Simple Levenshtein-based similarity
+    const longer = s1.length > s2.length ? s1 : s2;
+    const shorter = s1.length > s2.length ? s2 : s1;
+    
+    const longerLength = longer.length;
+    if (longerLength === 0) return 1;
+    
+    // Calculate edit distance
+    const costs: number[] = [];
+    for (let i = 0; i <= shorter.length; i++) {
+      let lastValue = i;
+      for (let j = 0; j <= longer.length; j++) {
+        if (i === 0) {
+          costs[j] = j;
+        } else if (j > 0) {
+          let newValue = costs[j - 1];
+          if (shorter[i - 1] !== longer[j - 1]) {
+            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
+          }
+          costs[j - 1] = lastValue;
+          lastValue = newValue;
+        }
+      }
+      if (i > 0) costs[longer.length] = lastValue;
+    }
+    
+    return (longerLength - costs[longer.length]) / longerLength;
+  };
+
+  // Check if two names likely refer to the same person
+  const isSamePerson = (name1: string, name2: string): boolean => {
+    const norm1 = normalizeNameForMatching(name1);
+    const norm2 = normalizeNameForMatching(name2);
+    
+    // Exact match after normalization
+    if (norm1 === norm2) return true;
+    
+    // Split into first/last
+    const parts1 = norm1.split(/\s+/);
+    const parts2 = norm2.split(/\s+/);
+    
+    if (parts1.length < 2 || parts2.length < 2) return false;
+    
+    const first1 = parts1[0];
+    const last1 = parts1[parts1.length - 1];
+    const first2 = parts2[0];
+    const last2 = parts2[parts2.length - 1];
+    
+    // First names match (after nickname normalization) and last names are very similar
+    if (first1 === first2 && calculateSimilarity(last1, last2) > 0.8) return true;
+    
+    // Last names match exactly and first names are similar
+    if (last1 === last2 && calculateSimilarity(first1, first2) > 0.8) return true;
+    
+    return false;
+  };
+
+  // Find existing key that matches by email first, then by name
+  const findMatchingKey = (statsMap: Map<string, any>, email?: string, name?: string): string | null => {
+    // Email match is most reliable
+    if (email) {
+      const emailKey = email.toLowerCase();
+      if (statsMap.has(emailKey)) return emailKey;
+      
+      // Check if any existing entry has this email
+      for (const [key, entry] of statsMap.entries()) {
+        if (entry.email && entry.email.toLowerCase() === emailKey) {
+          return key;
+        }
+      }
+    }
+    
+    // Fall back to name matching if no email
+    if (name) {
+      const nameKey = name.toLowerCase();
+      if (statsMap.has(nameKey)) return nameKey;
+      
+      // Fuzzy name match
+      for (const existingKey of statsMap.keys()) {
+        const existingName = statsMap.get(existingKey)?.name || existingKey;
+        if (isSamePerson(name, existingName)) {
+          return existingKey;
+        }
+      }
+    }
+    
+    return null;
+  };
+
   // --- Aggregation Logic ---
   const aggregatedStats = useMemo(() => {
     const statsMap = new Map<string, {
@@ -168,24 +347,47 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     // 1. Initialize from Employees (Roster)
     employees.forEach(emp => {
       const name = emp.full_name || emp.employee_name || emp.name || 'Unknown';
+      const email = emp.email || emp.company_email;
+      
       if (name.toLowerCase() === 'kimberly genes') return;
       if (hiddenEmployees.has(String(emp.id))) return;
 
-      const key = name.toLowerCase();
+      // Use email as primary key, fall back to name
+      const existingKey = findMatchingKey(statsMap, email, name);
       
-      statsMap.set(key, {
-        id: emp.id,
-        name: name,
-        program: (emp as any).program_title || emp.program || emp.program_name || 'Unassigned',
-        cohort: emp.cohort || emp.program_name || '', 
-        avatar_url: emp.avatar_url,
-        completed: 0,
-        noshow: 0,
-        scheduled: 0,
-        total: 0,
-        latestSession: null,
-        email: emp.email || emp.company_email
-      });
+      if (existingKey) {
+        // Merge with existing - prefer the one with a program assigned
+        const existing = statsMap.get(existingKey)!;
+        const newProgram = (emp as any).program_title || emp.program || emp.program_name || 'Unassigned';
+        if (existing.program === 'Unassigned' && newProgram !== 'Unassigned') {
+          existing.program = newProgram;
+          existing.cohort = emp.cohort || emp.program_name || existing.cohort;
+        }
+        // Always update email if we have one
+        if (email && !existing.email) {
+          existing.email = email;
+        }
+        // Update name only if existing has no sessions (prefer name from record with sessions)
+        if (existing.total === 0 && name) {
+          existing.name = name;
+        }
+      } else {
+        // Use email as key if available, otherwise name
+        const key = email ? email.toLowerCase() : name.toLowerCase();
+        statsMap.set(key, {
+          id: emp.id,
+          name: name,
+          program: (emp as any).program_title || emp.program || emp.program_name || 'Unassigned',
+          cohort: emp.cohort || emp.program_name || '', 
+          avatar_url: emp.avatar_url,
+          completed: 0,
+          noshow: 0,
+          scheduled: 0,
+          total: 0,
+          latestSession: null,
+          email: email
+        });
+      }
     });
 
     // 2. Process Sessions
@@ -194,11 +396,11 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       const name = emp?.full_name || emp?.first_name 
                    ? `${emp.first_name} ${emp.last_name || ''}`.trim()
                    : (session.employee_name || 'Unknown Employee');
+      const email = emp?.email || emp?.company_email || (session as any).employee_email;
       
       if (name.toLowerCase() === 'kimberly genes') return;
       if (session.employee_id && hiddenEmployees.has(String(session.employee_id))) return;
       
-      const key = name.toLowerCase();
       const sessionProgram = (session as any).program_title || session.program_name || session.program || '';
       const sessionCohort = session.cohort || session.program_name || '';
 
@@ -206,9 +408,14 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       if (filterType === 'program' && sessionProgram !== filterValue) includeSession = false;
       if (filterType === 'cohort' && sessionCohort !== filterValue) includeSession = false;
 
-      if (!statsMap.has(key)) {
+      // Use email-first matching to find existing entry
+      let matchedKey = findMatchingKey(statsMap, email, name);
+      
+      if (!matchedKey) {
         if (hiddenEmployees.has(String(session.employee_id || session.id))) return;
 
+        // Use email as key if available, otherwise name
+        const key = email ? email.toLowerCase() : name.toLowerCase();
         statsMap.set(key, {
           id: session.employee_id || session.id,
           name: name,
@@ -220,14 +427,19 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           scheduled: 0,
           total: 0,
           latestSession: null,
-          email: emp?.email || emp?.company_email
+          email: email
         });
+        matchedKey = key;
       }
 
-      const entry = statsMap.get(key)!;
+      const entry = statsMap.get(matchedKey)!;
       if (!entry.cohort && sessionCohort) entry.cohort = sessionCohort;
       if (entry.program === 'Unassigned' && sessionProgram) entry.program = sessionProgram;
-      if (!entry.email && (emp?.email || emp?.company_email)) entry.email = emp?.email || emp?.company_email;
+      if (!entry.email && email) entry.email = email;
+      // Session data takes precedence for name (since it has sessions tied to it)
+      if (name && name !== 'Unknown Employee') {
+        entry.name = name;
+      }
 
       if (includeSession) {
         entry.total += 1;
