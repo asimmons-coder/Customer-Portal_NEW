@@ -477,15 +477,15 @@ const ImpactDashboard: React.FC = () => {
                 </table>
             </div>
             </div>
+            
+            {/* Testimonials Section */}
+            <TestimonialsSection 
+              surveys={surveys} 
+              selectedProgram={selectedProgram}
+              expandedTheme={expandedTheme}
+              setExpandedTheme={setExpandedTheme}
+            />
         </div>
-        
-        {/* Testimonials Section */}
-        <TestimonialsSection 
-          surveys={surveys} 
-          selectedProgram={selectedProgram}
-          expandedTheme={expandedTheme}
-          setExpandedTheme={setExpandedTheme}
-        />
       )}
     </div>
   );
