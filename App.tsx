@@ -125,6 +125,7 @@ const MainPortalLayout: React.FC = () => {
         setProgramTypeLoading(false);
 
         // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
+        let foundPrograms: string[] = [];
         try {
           const { data: sessionPrograms, error: sessionError } = await supabase
             .from('session_tracking')
@@ -133,13 +134,16 @@ const MainPortalLayout: React.FC = () => {
           console.log('Session programs query:', { sessionPrograms, sessionError });
 
           if (!sessionError && sessionPrograms && sessionPrograms.length > 0) {
-            const uniquePrograms = [...new Set(
+            foundPrograms = [...new Set(
               sessionPrograms.map(s => s.program_title)
                 .filter(p => p && p.trim().length > 0)
             )] as string[];
-            console.log('Unique programs found:', uniquePrograms);
-            if (uniquePrograms.length > 0) {
-              setPrograms(uniquePrograms.sort());
+            console.log('Unique programs found from sessions:', foundPrograms);
+            
+            // Set programs immediately when found
+            if (foundPrograms.length > 0) {
+              console.log('Setting programs state to:', foundPrograms.sort());
+              setPrograms(foundPrograms.sort());
             }
           }
         } catch (progErr) {
@@ -147,19 +151,27 @@ const MainPortalLayout: React.FC = () => {
         }
         
         // Fallback to program_config if no programs found from sessions
-        if (programs.length === 0) {
+        if (foundPrograms.length === 0) {
+          console.log('No programs from sessions, trying program_config...');
           const { data, error } = await supabase
             .from('program_config')
             .select('program_title, program_start_date')
             .ilike('account_name', `%${company.split(' - ')[0]}%`)
             .order('program_start_date', { ascending: false, nullsFirst: false });
 
+          console.log('Program config query:', { data, error });
+
           if (!error && data) {
-            const uniquePrograms = [...new Set(
+            foundPrograms = [...new Set(
               data.map(d => d.program_title)
                 .filter(p => p && p.trim().length > 0)
             )] as string[];
-            setPrograms(uniquePrograms);
+            console.log('Unique programs found from config:', foundPrograms);
+            
+            if (foundPrograms.length > 0) {
+              console.log('Setting programs state from config to:', foundPrograms);
+              setPrograms(foundPrograms);
+            }
           }
         }
       } catch (err) {
