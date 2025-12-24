@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getWelcomeSurveyData } from '../lib/dataFetcher';
-import { WelcomeSurveyEntry } from '../types';
+import { getWelcomeSurveyData, getProgramConfig } from '../lib/dataFetcher';
+import { WelcomeSurveyEntry, ProgramConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
 import { 
@@ -19,6 +19,7 @@ import {
 
 const BaselineDashboard: React.FC = () => {
   const [data, setData] = useState<WelcomeSurveyEntry[]>([]);
+  const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCohort, setSelectedCohort] = useState('All Cohorts');
@@ -52,16 +53,31 @@ const BaselineDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         const companyBase = company.split(' - ')[0].toLowerCase();
         
-        const result = await getWelcomeSurveyData();
+        const [result, configData] = await Promise.all([
+          getWelcomeSurveyData(),
+          getProgramConfig()
+        ]);
         
         // Filter by company
         const filteredResult = result.filter(b => {
           const account = ((b as any).account || '').toLowerCase();
+          const programTitle = ((b as any).program_title || '').toLowerCase();
+          // Check TWC prefix for Wonderful Company
+          if (companyBase.includes('wonderful') && programTitle.startsWith('twc')) {
+            return true;
+          }
           return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
+        });
+        
+        // Filter program config by company
+        const filteredConfig = configData.filter(p => {
+          const accountName = (p.account_name || '').toLowerCase();
+          return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
         });
         
         console.log("Raw Baseline Data:", filteredResult); // Debug log
         setData(filteredResult);
+        setProgramConfig(filteredConfig);
       } catch (err: any) {
         setError(err.message || 'Failed to load survey data');
       } finally {
@@ -72,13 +88,37 @@ const BaselineDashboard: React.FC = () => {
   }, []);
 
   const { filteredData, cohorts, stats } = useMemo(() => {
-    // Extract unique cohorts
-    const uniqueCohorts = ['All Cohorts', ...Array.from(new Set(data.map(d => d.cohort).filter(Boolean))).sort()];
+    // Build start date map for sorting
+    const startDateMap = new Map<string, Date>();
+    programConfig.forEach(p => {
+      if (p.program_title && p.program_start_date) {
+        startDateMap.set(p.program_title, new Date(p.program_start_date));
+      }
+    });
+    
+    // Extract unique cohorts from program_title (preferred) or cohort field
+    const programTitles = data.map(d => (d as any).program_title || d.cohort).filter(Boolean);
+    const uniquePrograms = Array.from(new Set(programTitles));
+    
+    // Sort by start date (most recent first)
+    uniquePrograms.sort((a, b) => {
+      const dateA = startDateMap.get(a);
+      const dateB = startDateMap.get(b);
+      if (dateA && dateB) return dateB.getTime() - dateA.getTime();
+      if (dateA) return -1;
+      if (dateB) return 1;
+      return a.localeCompare(b);
+    });
+    
+    const uniqueCohorts = ['All Cohorts', ...uniquePrograms];
 
-    // Filter
+    // Filter by program_title or cohort
     const filtered = selectedCohort === 'All Cohorts' 
       ? data 
-      : data.filter(d => d.cohort === selectedCohort);
+      : data.filter(d => {
+          const pt = (d as any).program_title || d.cohort || '';
+          return pt === selectedCohort;
+        });
 
     if (filtered.length === 0) {
       return { 
@@ -155,7 +195,7 @@ const BaselineDashboard: React.FC = () => {
         }
       }
     };
-  }, [data, selectedCohort]);
+  }, [data, selectedCohort, programConfig]);
 
   if (loading) {
      return (
