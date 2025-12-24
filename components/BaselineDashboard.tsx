@@ -187,6 +187,43 @@ const BaselineDashboard: React.FC = () => {
         }));
     };
 
+    // Analyze coaching goals for themes
+    const analyzeCoachingGoals = (entries: WelcomeSurveyEntry[]) => {
+      const goals = entries
+        .map(e => (e as any).coaching_goals)
+        .filter(g => g && typeof g === 'string' && g.length > 20);
+      
+      if (goals.length === 0) return [];
+      
+      const themePatterns: Record<string, string[]> = {
+        'Leadership Skills': ['leadership', 'lead', 'leader', 'managing people', 'manage team'],
+        'Executive Presence': ['executive presence', 'presence', 'confident', 'confidence', 'gravitas'],
+        'Communication': ['communication', 'communicate', 'speaking', 'presentation', 'articulate'],
+        'Time Management': ['time management', 'productivity', 'priorit', 'balance', 'workload'],
+        'Strategic Thinking': ['strategic', 'strategy', 'vision', 'big picture'],
+        'Delegation': ['delegation', 'delegate', 'empower', 'trust team'],
+        'Career Growth': ['career', 'promotion', 'growth', 'advancement', 'next level', 'new role'],
+        'Difficult Conversations': ['conflict', 'difficult conversation', 'feedback', 'tough talk'],
+        'Team Building': ['team', 'collaboration', 'relationship', 'peers'],
+        'Managing Up': ['managing up', 'stakeholder', 'executive', 'senior leader'],
+      };
+      
+      const themeCounts: Record<string, number> = {};
+      for (const goal of goals) {
+        const lower = goal.toLowerCase();
+        for (const [theme, patterns] of Object.entries(themePatterns)) {
+          if (patterns.some(p => lower.includes(p))) {
+            themeCounts[theme] = (themeCounts[theme] || 0) + 1;
+          }
+        }
+      }
+      
+      return Object.entries(themeCounts)
+        .map(([theme, count]) => ({ theme, count, pct: (count / goals.length) * 100 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+    };
+
     return {
       filteredData: filtered,
       cohorts: uniqueCohorts,
@@ -205,43 +242,6 @@ const BaselineDashboard: React.FC = () => {
       }
     };
   }, [data, selectedCohort, programConfig]);
-
-  // Analyze coaching goals for themes
-  const analyzeCoachingGoals = (entries: WelcomeSurveyEntry[]) => {
-    const goals = entries
-      .map(e => (e as any).coaching_goals)
-      .filter(g => g && typeof g === 'string' && g.length > 20);
-    
-    if (goals.length === 0) return [];
-    
-    const themePatterns: Record<string, string[]> = {
-      'Leadership Skills': ['leadership', 'lead', 'leader', 'managing people', 'manage team'],
-      'Executive Presence': ['executive presence', 'presence', 'confident', 'confidence', 'gravitas'],
-      'Communication': ['communication', 'communicate', 'speaking', 'presentation', 'articulate'],
-      'Time Management': ['time management', 'productivity', 'priorit', 'balance', 'workload'],
-      'Strategic Thinking': ['strategic', 'strategy', 'vision', 'big picture'],
-      'Delegation': ['delegation', 'delegate', 'empower', 'trust team'],
-      'Career Growth': ['career', 'promotion', 'growth', 'advancement', 'next level', 'new role'],
-      'Difficult Conversations': ['conflict', 'difficult conversation', 'feedback', 'tough talk'],
-      'Team Building': ['team', 'collaboration', 'relationship', 'peers'],
-      'Managing Up': ['managing up', 'stakeholder', 'executive', 'senior leader'],
-    };
-    
-    const themeCounts: Record<string, number> = {};
-    for (const goal of goals) {
-      const lower = goal.toLowerCase();
-      for (const [theme, patterns] of Object.entries(themePatterns)) {
-        if (patterns.some(p => lower.includes(p))) {
-          themeCounts[theme] = (themeCounts[theme] || 0) + 1;
-        }
-      }
-    }
-    
-    return Object.entries(themeCounts)
-      .map(([theme, count]) => ({ theme, count, pct: (count / goals.length) * 100 }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-  };
 
   if (loading) {
      return (
