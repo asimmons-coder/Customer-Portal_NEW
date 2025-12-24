@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getSessionData, getCompetencyScores, getSurveyResponses } from '../lib/dataFetcher';
+import { getDashboardSessions, getCompetencyScores, getSurveyResponses } from '../lib/dataFetcher';
 import { FileDown, Loader2, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -87,7 +87,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     
     // Fetch session data using dataFetcher
     setProgress('Fetching session data...');
-    const allSessions = await getSessionData();
+    const allSessions = await getDashboardSessions();
     const sessions = allSessions.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
     
     const completedSessions = sessions.filter(s => (s as any).status === 'Completed');
