@@ -30,17 +30,24 @@ interface ReportData {
   };
   themes: { name: string; count: number }[];
   testimonials: string[];
-  programsThisYear: { name: string; startDate: string }[];
+  programsForPeriod: { name: string; startDate: string }[];
+  programPeriodLabel: string;
   aiSummary: string;
 }
 
 const getApiKey = () => {
   try {
+    // Try Vite's import.meta.env first
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      const env = (import.meta as any).env;
+      return env.VITE_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY;
+    }
+    // Fallback to process.env
     if (typeof process !== 'undefined' && process.env) {
-      return process.env.API_KEY;
+      return process.env.API_KEY || process.env.GEMINI_API_KEY;
     }
   } catch (e) {
-    return undefined;
+    // Silence errors
   }
   return undefined;
 };
@@ -261,23 +268,72 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       })
       .slice(0, 5);
     
-    // Fetch programs launched this year
+    // Fetch programs based on date range
     setProgress('Loading program data...');
     const allPrograms = await getProgramConfig();
     const programsFiltered = allPrograms.filter(p => matchesCompany((p as any).account_name, (p as any).program_title));
     
-    const currentYear = now.getFullYear();
-    const programsThisYear = programsFiltered
-      .filter(p => {
-        const startDate = (p as any).program_start_date;
-        if (!startDate) return false;
-        return new Date(startDate).getFullYear() === currentYear;
-      })
-      .map(p => ({
-        name: (p as any).program_title || 'Unknown Program',
-        startDate: (p as any).program_start_date
-      }))
-      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    // Filter programs based on selected date range
+    let programsForPeriod: { name: string; startDate: string }[] = [];
+    let programPeriodLabel = '';
+    
+    if (selectedProgram === 'all') {
+      if (dateRange === 'all') {
+        // All time - show all programs
+        programsForPeriod = programsFiltered
+          .filter(p => (p as any).program_start_date)
+          .map(p => ({
+            name: (p as any).program_title || 'Unknown Program',
+            startDate: (p as any).program_start_date
+          }));
+        programPeriodLabel = 'All Programs';
+      } else if (dateRange === 'ytd') {
+        // Year to date - show 2025 programs only
+        programsForPeriod = programsFiltered
+          .filter(p => {
+            const startDate = (p as any).program_start_date;
+            if (!startDate) return false;
+            return new Date(startDate).getFullYear() === now.getFullYear();
+          })
+          .map(p => ({
+            name: (p as any).program_title || 'Unknown Program',
+            startDate: (p as any).program_start_date
+          }));
+        programPeriodLabel = `Programs Launched in ${now.getFullYear()}`;
+      } else if (dateRange === 'q4') {
+        // Q4 2024
+        programsForPeriod = programsFiltered
+          .filter(p => {
+            const startDate = (p as any).program_start_date;
+            if (!startDate) return false;
+            const d = new Date(startDate);
+            return d.getFullYear() === 2024 && d.getMonth() >= 9; // Oct-Dec
+          })
+          .map(p => ({
+            name: (p as any).program_title || 'Unknown Program',
+            startDate: (p as any).program_start_date
+          }));
+        programPeriodLabel = 'Programs Launched in Q4 2024';
+      } else if (dateRange === 'q3') {
+        // Q3 2024
+        programsForPeriod = programsFiltered
+          .filter(p => {
+            const startDate = (p as any).program_start_date;
+            if (!startDate) return false;
+            const d = new Date(startDate);
+            return d.getFullYear() === 2024 && d.getMonth() >= 6 && d.getMonth() <= 8; // Jul-Sep
+          })
+          .map(p => ({
+            name: (p as any).program_title || 'Unknown Program',
+            startDate: (p as any).program_start_date
+          }));
+        programPeriodLabel = 'Programs Launched in Q3 2024';
+      }
+      
+      // Sort by start date
+      programsForPeriod.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    }
+    // If single program selected, programsForPeriod stays empty (won't show section)
     
     // Generate AI summary
     setProgress('Generating AI insights...');
@@ -298,7 +354,7 @@ Data:
 - Top growth areas: ${competencyStats.slice(0, 3).map(c => `${c.name} (+${c.change}%)`).join(', ')}
 - NPS Score: +${nps}
 - Coach satisfaction: ${(csat).toFixed(1)}/10
-- Programs launched this year: ${programsThisYear.length} (${programsThisYear.map(p => p.name).join(', ')})
+- Programs in this period: ${programsForPeriod.length} (${programsForPeriod.map(p => p.name).join(', ')})
 - Top coaching themes: ${themes.slice(0, 3).map(t => t.name).join(', ')}
 
 Write a compelling summary highlighting the key achievements and impact. Start with the most impressive metric.`;
@@ -343,7 +399,8 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       },
       themes,
       testimonials: allTestimonials,
-      programsThisYear,
+      programsForPeriod,
+      programPeriodLabel,
       aiSummary
     };
   };
@@ -418,18 +475,21 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       pdf.text(summaryLines, margin + 5, y + 8);
       y += summaryBoxHeight + 8;
       
-      // Programs Launched This Year
-      if (data.programsThisYear.length > 0) {
+      // Programs section (only show if not single program selected)
+      if (data.programsForPeriod.length > 0 && data.programPeriodLabel) {
         pdf.setTextColor(31, 41, 55);
-        pdf.setFontSize(10);
+        pdf.setFontSize(9);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`Programs Launched in ${new Date().getFullYear()}: `, margin, y);
+        pdf.text(`${data.programPeriodLabel}:`, margin, y);
         
         pdf.setFont('helvetica', 'normal');
-        const programNames = data.programsThisYear.map(p => p.name).slice(0, 4).join(', ');
-        const moreText = data.programsThisYear.length > 4 ? ` +${data.programsThisYear.length - 4} more` : '';
-        pdf.text(programNames + moreText, margin + 55, y);
-        y += 10;
+        pdf.setTextColor(70, 111, 246);
+        const programNames = data.programsForPeriod.map(p => p.name).slice(0, 3).join('  •  ');
+        const moreText = data.programsForPeriod.length > 3 ? `  (+${data.programsForPeriod.length - 3} more)` : '';
+        const programText = programNames + moreText;
+        const programLines = pdf.splitTextToSize(programText, pageWidth - 2 * margin);
+        pdf.text(programLines, margin, y + 5);
+        y += 5 + (programLines.length * 4) + 4;
       }
       
       // Key Metrics
@@ -540,31 +600,33 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Top Coaching Themes', margin, y);
-      y += 10;
+      y += 12;
       
       if (data.themes.length > 0) {
         const totalThemes = data.themes.reduce((sum, t) => sum + t.count, 0);
         const themeColors = ['#466FF6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981'];
+        const maxBarWidth = 60; // Fixed max bar width
         
         data.themes.slice(0, 5).forEach((theme, i) => {
           const pct = Math.round((theme.count / totalThemes) * 100);
-          const maxBarWidth = pageWidth - 2 * margin - 80;
           const barW = (pct / 100) * maxBarWidth;
           
-          drawRect(margin, y, barW, 8, themeColors[i % themeColors.length], 2);
+          // Draw bar
+          drawRect(margin, y, barW, 10, themeColors[i % themeColors.length], 3);
           
+          // Theme name - right after bar
           pdf.setTextColor(31, 41, 55);
-          pdf.setFontSize(8);
+          pdf.setFontSize(9);
           pdf.setFont('helvetica', 'normal');
+          const displayName = theme.name.length > 35 ? theme.name.substring(0, 35) + '...' : theme.name;
+          pdf.text(displayName, margin + maxBarWidth + 8, y + 7);
           
-          // Full theme name (more space now)
-          const displayName = theme.name.length > 40 ? theme.name.substring(0, 40) + '...' : theme.name;
-          pdf.text(displayName, margin + maxBarWidth + 8, y + 6);
-          
+          // Percentage - right aligned
           pdf.setTextColor(107, 114, 128);
-          pdf.text(`${pct}%`, pageWidth - margin - 8, y + 6);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(`${pct}%`, pageWidth - margin, y + 7, { align: 'right' });
           
-          y += 12;
+          y += 14;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -573,7 +635,7 @@ Write a compelling summary highlighting the key achievements and impact. Start w
         y += 12;
       }
       
-      y += 8;
+      y += 10;
       
       // Testimonials Header
       pdf.setTextColor(31, 41, 55);

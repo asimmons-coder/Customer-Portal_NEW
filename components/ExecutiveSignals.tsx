@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { supabase } from '../lib/supabaseClient';
@@ -33,11 +32,20 @@ interface ProgramConfig {
   context_notes: string;
 }
 
-// Helper to safely access process.env.API_KEY in potentially brittle environments
+// Helper to safely access API key from various env configurations
 const getApiKey = () => {
   try {
+    // Try Vite's import.meta.env first (client-side)
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+      const env = (import.meta as any).env;
+      if (env.VITE_API_KEY) return env.VITE_API_KEY;
+      if (env.VITE_GEMINI_API_KEY) return env.VITE_GEMINI_API_KEY;
+    }
+    // Fallback to process.env (server-side or build-time)
     if (typeof process !== 'undefined' && process.env) {
-      return process.env.API_KEY;
+      if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
+      if (process.env.API_KEY) return process.env.API_KEY;
+      if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
     }
   } catch (e) {
     // Silence errors to handle missing process gracefully
@@ -85,8 +93,8 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [programConfig, setProgramConfig] = useState<ProgramConfig | null>(null);
 
-  // Memoize API Key availability to ensure effect stability
-  const apiKeyAvailable = useMemo(() => !!getApiKey(), []);
+  // Memoize API Key to ensure hooks stable
+  const apiKey = useMemo(() => getApiKey(), []);
 
   useEffect(() => {
     const fetchProgramConfig = async () => {
@@ -123,8 +131,7 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
   }, [accountName]);
 
   useEffect(() => {
-    // Fix: Using process.env.API_KEY directly for initialization as per guidelines
-    if (!process.env.API_KEY) {
+    if (!apiKey) {
       setLoading(false);
       return;
     }
@@ -146,8 +153,7 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
       setError(null);
 
       try {
-        // Fix: Initializing GoogleGenAI with process.env.API_KEY directly
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+        const ai = new GoogleGenAI({ apiKey });
         
         const safeStringify = (obj: any) => {
           const cache = new Set();
@@ -216,10 +222,10 @@ Notes: ${programConfig.context_notes || 'None'}
 
     generateSignals();
     return () => { mounted = false; };
-  }, [sessions, employees, selectedCohort, context, data, programConfig]);
+  }, [sessions, employees, selectedCohort, context, data, programConfig, apiKey]);
 
   // Return early ONLY after hooks are declared to avoid Rules of Hooks violations
-  if (!apiKeyAvailable) return null;
+  if (!apiKey) return null;
 
   if (error) {
     return (
