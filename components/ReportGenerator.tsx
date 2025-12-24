@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { FileDown, Loader2, X, CheckCircle } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import { getSessionData, getCompetencyScores, getSurveyResponses } from '../lib/dataFetcher';
+import { FileDown, Loader2, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 
 interface ReportGeneratorProps {
@@ -66,25 +66,37 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const company = session?.user?.app_metadata?.company || '';
     const companyBase = company.split(' - ')[0].toLowerCase();
     
-    // Fetch session data
-    setProgress('Fetching session data...');
-    const { data: sessionData } = await supabase
-      .from('session_data')
-      .select('*')
-      .or(`account.ilike.%${companyBase}%,program_title.ilike.twc%`);
+    // Helper to check company match
+    const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
+      if (!company) return false;
+      
+      // Check if program_title starts with TWC (for Wonderful Company)
+      if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
+        return true;
+      }
+      
+      if (!value) return false;
+      const valueBase = value.toLowerCase();
+      
+      if (companyBase.includes('wonderful') && valueBase.includes('wonderful')) {
+        return true;
+      }
+      
+      return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+    };
     
-    const sessions = sessionData || [];
-    const completedSessions = sessions.filter(s => s.status === 'Completed');
-    const uniqueEmployees = new Set(sessions.map(s => s.employee_email?.toLowerCase())).size;
+    // Fetch session data using dataFetcher
+    setProgress('Fetching session data...');
+    const allSessions = await getSessionData();
+    const sessions = allSessions.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+    
+    const completedSessions = sessions.filter(s => (s as any).status === 'Completed');
+    const uniqueEmployees = new Set(sessions.map(s => (s as any).employee_email?.toLowerCase())).size;
     
     // Fetch competency scores
     setProgress('Analyzing competency growth...');
-    const { data: compData } = await supabase
-      .from('competency_scores_grow')
-      .select('*')
-      .or(`account.ilike.%${companyBase}%,program_title.ilike.twc%`);
-    
-    const scores = compData || [];
+    const allScores = await getCompetencyScores();
+    const scores = allScores.filter(c => matchesCompany((c as any).account, (c as any).program_title));
     
     // Calculate competency changes
     const competencyKeys = [
@@ -112,14 +124,14 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       const postKey = `${key}_post`;
       
       const validScores = scores.filter(s => 
-        s[preKey] != null && s[postKey] != null && 
-        s[preKey] > 0 && s[postKey] > 0
+        (s as any)[preKey] != null && (s as any)[postKey] != null && 
+        (s as any)[preKey] > 0 && (s as any)[postKey] > 0
       );
       
       if (validScores.length === 0) return null;
       
-      const avgPre = validScores.reduce((sum, s) => sum + Number(s[preKey]), 0) / validScores.length;
-      const avgPost = validScores.reduce((sum, s) => sum + Number(s[postKey]), 0) / validScores.length;
+      const avgPre = validScores.reduce((sum, s) => sum + Number((s as any)[preKey]), 0) / validScores.length;
+      const avgPost = validScores.reduce((sum, s) => sum + Number((s as any)[postKey]), 0) / validScores.length;
       const change = ((avgPost - avgPre) / avgPre) * 100;
       
       return {
@@ -136,14 +148,11 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     
     // Fetch satisfaction data
     setProgress('Gathering satisfaction scores...');
-    const { data: surveyData } = await supabase
-      .from('survey_responses_unified')
-      .select('nps_score, coach_rating')
-      .or(`account.ilike.%${companyBase}%,program_title.ilike.twc%`);
+    const allSurveys = await getSurveyResponses();
+    const surveys = allSurveys.filter(s => matchesCompany((s as any).account, (s as any).program_title));
     
-    const surveys = surveyData || [];
-    const npsScores = surveys.map(s => s.nps_score).filter(n => n != null);
-    const csatScores = surveys.map(s => s.coach_rating).filter(n => n != null);
+    const npsScores = surveys.map(s => (s as any).nps_score).filter(n => n != null);
+    const csatScores = surveys.map(s => (s as any).coach_rating).filter(n => n != null);
     
     const promoters = npsScores.filter(n => n >= 9).length;
     const detractors = npsScores.filter(n => n <= 6).length;
@@ -155,16 +164,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       ? csatScores.reduce((a, b) => a + b, 0) / csatScores.length
       : 0;
     
-    // Fetch testimonials
+    // Get testimonials
     setProgress('Collecting testimonials...');
-    const { data: feedbackData } = await supabase
-      .from('survey_responses_unified')
-      .select('feedback_learned, feedback_insight')
-      .or(`account.ilike.%${companyBase}%,program_title.ilike.twc%`)
-      .not('feedback_learned', 'is', null);
-    
-    const testimonials = (feedbackData || [])
-      .flatMap(f => [f.feedback_learned, f.feedback_insight])
+    const testimonials = surveys
+      .flatMap(s => [(s as any).feedback_learned, (s as any).feedback_insight])
       .filter(t => t && t.length > 50)
       .slice(0, 3);
     
@@ -173,7 +176,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         total: sessions.length,
         completed: completedSessions.length,
         employees: uniqueEmployees,
-        utilization: uniqueEmployees > 0 ? Math.round((completedSessions.length / sessions.length) * 100) : 0
+        utilization: sessions.length > 0 ? Math.round((completedSessions.length / sessions.length) * 100) : 0
       },
       impact: {
         overallGrowth: Math.round(overallGrowth * 10) / 10,
