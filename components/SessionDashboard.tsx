@@ -501,7 +501,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         </h3>
         <div className="h-36 md:h-64 w-full overflow-x-auto">
            <div className="min-w-[600px] h-full">
-              <SimpleTrendChart sessions={sessions} filterType={filterType} filterValue={filterValue} />
+              <SimpleTrendChart sessions={sessions} filterType={filterType} filterValue={filterValue} programFilter={programFilter} />
            </div>
         </div>
       </div>
@@ -727,7 +727,7 @@ const AdoptionMetricCard = ({ rate, engaged, total }: { rate: number, engaged: n
   );
 };
 
-const SimpleTrendChart = ({ sessions, filterType, filterValue }: { sessions: SessionWithEmployee[], filterType: string, filterValue: string }) => {
+const SimpleTrendChart = ({ sessions, filterType, filterValue, programFilter }: { sessions: SessionWithEmployee[], filterType: string, filterValue: string, programFilter: string }) => {
   const [hoveredPoint, setHoveredPoint] = useState<{x: number, y: number, value: number, label: string} | null>(null);
 
   const chartData = useMemo(() => {
