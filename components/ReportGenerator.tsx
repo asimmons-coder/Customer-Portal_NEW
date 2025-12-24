@@ -339,46 +339,49 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     setProgress('Generating AI insights...');
     let aiSummary = '';
     
+    // Build a good fallback summary
+    const fallbackSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} coaching sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'} (+${competencyStats[0]?.change || 0}%).`;
+    
     const apiKey = getApiKey();
     if (apiKey && completedSessions.length > 0) {
       try {
         const ai = new GoogleGenAI({ apiKey });
         
-        const summaryPrompt = `Write a 2-3 sentence executive summary for this coaching program report. Be specific with numbers. No bullet points.
+        const summaryPrompt = `Write exactly 2 complete sentences summarizing this coaching program's impact. Use specific numbers. No bullet points or incomplete thoughts.
 
-Company: ${companyName}
-Sessions: ${completedSessions.length} completed
-Participants: ${uniqueEmployees}
-Competency Growth: ${Math.round(overallGrowth)}%
-Top Growth: ${competencyStats.slice(0, 3).map(c => `${c.name} +${c.change}%`).join(', ')}
-NPS: +${nps}
-Coach Rating: ${(csat).toFixed(1)}/10
-Themes: ${themes.slice(0, 3).map(t => t.name).join(', ')}
+Data:
+- ${completedSessions.length} coaching sessions completed
+- ${uniqueEmployees} participants
+- ${Math.round(overallGrowth)}% competency growth
+- Top improvements: ${competencyStats.slice(0, 3).map(c => `${c.name} +${c.change}%`).join(', ')}
+- NPS score: +${nps}
+- Coach rating: ${(csat).toFixed(1)}/10
 
-Start with the most impressive achievement. Be concise and impactful.`;
+Write a compelling 2-sentence summary. End with a period.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: summaryPrompt,
           config: {
-            maxOutputTokens: 500
+            maxOutputTokens: 300
           }
         });
         
-        if (response.text && response.text.length > 50) {
-          aiSummary = response.text.trim();
+        const text = response.text?.trim() || '';
+        
+        // Validate: must be >80 chars and end with proper punctuation
+        if (text.length > 80 && /[.!]$/.test(text)) {
+          aiSummary = text;
         } else {
-          // Response too short, use fallback
-          aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
+          // AI response incomplete, use fallback
+          aiSummary = fallbackSummary;
         }
       } catch (err) {
         console.error('AI summary generation failed:', err);
-        // Fall back to template summary
-        aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
+        aiSummary = fallbackSummary;
       }
     } else {
-      // Fallback summary without AI
-      aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
+      aiSummary = fallbackSummary;
     }
     
     return {
@@ -654,24 +657,17 @@ Start with the most impressive achievement. Be concise and impactful.`;
       pdf.text('What Participants Are Saying', margin, y);
       y += 10;
       
-      const footerSpace = 20; // Reserve space for footer
+      const footerSpace = 25; // Reserve space for footer
       
       if (data.testimonials.length > 0) {
         data.testimonials.forEach((quote, index) => {
           // Calculate height needed
-          pdf.setFontSize(9);
+          pdf.setFontSize(8);
           const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 25);
-          const boxHeight = Math.min(quoteLines.length * 4.5 + 14, 45);
+          const boxHeight = Math.min(quoteLines.length * 4 + 12, 42);
           
           // Check if we need a new page
           if (y + boxHeight > pageHeight - footerSpace) {
-            // Add footer to current page before creating new one
-            pdf.setTextColor(156, 163, 175);
-            pdf.setFontSize(8);
-            pdf.setFont('helvetica', 'normal');
-            const currentPage = pdf.getCurrentPageInfo().pageNumber;
-            pdf.text(`Generated by Boon  •  Page ${currentPage}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-            
             pdf.addPage();
             y = margin;
             
@@ -680,25 +676,25 @@ Start with the most impressive achievement. Be concise and impactful.`;
             pdf.setFontSize(12);
             pdf.setFont('helvetica', 'bold');
             pdf.text('What Participants Are Saying (continued)', margin, y);
-            y += 10;
+            y += 12;
           }
           
           drawRect(margin, y, pageWidth - 2 * margin, boxHeight, '#FEF3C7', 4);
           
           // Quote mark
           pdf.setTextColor(245, 158, 11);
-          pdf.setFontSize(16);
+          pdf.setFontSize(14);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('"', margin + 5, y + 10);
+          pdf.text('"', margin + 5, y + 9);
           
           // Quote text
           const quoteRgb = hexToRgb('#78350F');
           pdf.setTextColor(quoteRgb.r, quoteRgb.g, quoteRgb.b);
           pdf.setFontSize(8);
           pdf.setFont('helvetica', 'italic');
-          pdf.text(quoteLines.slice(0, 8), margin + 14, y + 8);
+          pdf.text(quoteLines.slice(0, 7), margin + 14, y + 7);
           
-          y += boxHeight + 6;
+          y += boxHeight + 5;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -706,7 +702,7 @@ Start with the most impressive achievement. Be concise and impactful.`;
         pdf.text('No testimonials available', margin, y + 5);
       }
       
-      // Add footer to all pages
+      // Add footer to all pages at the end
       const totalPages = pdf.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
