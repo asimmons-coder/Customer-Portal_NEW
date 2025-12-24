@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getWelcomeSurveyScaleData } from '../lib/dataFetcher';
@@ -87,8 +86,7 @@ const ScaleBaselineDashboard: React.FC = () => {
 
         // Fetch survey data
         const data = await getWelcomeSurveyScaleData();
-        // Fix: Explicitly casting to unknown before ScaleWelcomeSurvey[] to satisfy TS compiler
-        setSurveyData(data as unknown as ScaleWelcomeSurvey[]);
+        setSurveyData(data as ScaleWelcomeSurvey[]);
 
         // Fetch benchmarks
         const { data: benchmarkData, error: benchmarkError } = await supabase
@@ -169,8 +167,8 @@ const ScaleBaselineDashboard: React.FC = () => {
     const previousCoachingCounts: Record<string, number> = { 'Yes': 0, 'No': 0 };
     surveyData.forEach(s => {
       const val = s.previous_coaching;
-      // Fix: Casting to any for broad comparison to avoid type overlap errors with number vs boolean/string
-      if (val === 1 || val === 1.0 || (val as any) === true || (val as any) === '1' || (val as any) === 'yes' || (val as any) === 'Yes') {
+      // Check for truthy value (1, 1.0, true, "1", "yes", etc.)
+      if (val === 1 || val === 1.0 || val === true || val === '1' || val === 'yes' || val === 'Yes') {
         previousCoachingCounts['Yes']++;
       } else {
         previousCoachingCounts['No']++;
@@ -385,8 +383,7 @@ const SummaryCard = ({ icon, label, value, suffix, isText }: any) => (
 );
 
 const SummaryCardWithBenchmark = ({ icon, label, value, benchmark, suffix }: {
-  // Fix: changed icon type to any to resolve "Type unknown not assignable to ReactNode" errors at call sites
-  icon: any;
+  icon: React.ReactNode;
   label: string;
   value: number;
   benchmark?: number;
