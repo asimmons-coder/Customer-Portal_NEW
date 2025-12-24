@@ -93,7 +93,11 @@ const EmployeeDashboard: React.FC = () => {
           })
           .map(e => ({
             ...e,
-            program_title: e.salesforce_program_id ? programTitleMap.get(e.salesforce_program_id) : undefined
+            // Use salesforce lookup first, then fall back to coaching_program
+            program_title: e.salesforce_program_id 
+              ? programTitleMap.get(e.salesforce_program_id) 
+              : (e.coaching_program || undefined),
+            program: e.coaching_program || e.program
           }));
         
         setEmployees(filteredData);
