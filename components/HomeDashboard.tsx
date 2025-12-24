@@ -128,6 +128,11 @@ const HomeDashboard: React.FC = () => {
         const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account));
         const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name));
         
+        // DEBUG: Check what fields are coming back from welcome_survey_baseline
+        console.log('DEBUG baseline data sample:', baseData[0]);
+        console.log('DEBUG baseline has program_title?:', baseData[0] ? Object.keys(baseData[0]) : 'empty');
+        console.log('DEBUG filtered baseline:', filteredBaseline.map(b => ({ email: (b as any).email, program_title: (b as any).program_title, cohort: b.cohort })));
+        
         setSessions(filteredSessions);
         setCompetencies(filteredCompetencies);
         setSurveys(filteredSurveys);
@@ -298,6 +303,15 @@ const HomeDashboard: React.FC = () => {
         const bCoh = normalize(b.cohort);
         const bComp = normalize(b.company);
         return bPt === selNorm || bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
+    });
+    
+    // DEBUG: Cohort filtering
+    console.log('DEBUG cohort filtering:', {
+      selectedCohort,
+      selNorm,
+      baselineDataCount: baselineData.length,
+      cohortBaselineCount: cohortBaseline.length,
+      sampleProgramTitles: baselineData.slice(0, 5).map(b => (b as any).program_title)
     });
 
     const focusMapping: Record<string, string> = {
