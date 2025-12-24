@@ -1,3 +1,4 @@
+
 import * as Sentry from "@sentry/react";
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
@@ -40,7 +41,8 @@ Sentry.init({
   tracesSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-  environment: import.meta.env.MODE, // 'development' or 'production'
+  // Fix: Using process.env.NODE_ENV instead of Vite-specific import.meta.env to avoid type errors
+  environment: process.env.NODE_ENV || 'development',
 });
 
 // --- Program Display Name Mapping ---

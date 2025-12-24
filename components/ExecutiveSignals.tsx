@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { GoogleGenAI, Type } from "@google/genai";
 import { supabase } from '../lib/supabaseClient';
@@ -84,8 +85,8 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [programConfig, setProgramConfig] = useState<ProgramConfig | null>(null);
 
-  // Memoize API Key to ensure hooks stable
-  const apiKey = useMemo(() => getApiKey(), []);
+  // Memoize API Key availability to ensure effect stability
+  const apiKeyAvailable = useMemo(() => !!getApiKey(), []);
 
   useEffect(() => {
     const fetchProgramConfig = async () => {
@@ -122,7 +123,8 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
   }, [accountName]);
 
   useEffect(() => {
-    if (!apiKey) {
+    // Fix: Using process.env.API_KEY directly for initialization as per guidelines
+    if (!process.env.API_KEY) {
       setLoading(false);
       return;
     }
@@ -144,7 +146,8 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
       setError(null);
 
       try {
-        const ai = new GoogleGenAI({ apiKey });
+        // Fix: Initializing GoogleGenAI with process.env.API_KEY directly
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
         
         const safeStringify = (obj: any) => {
           const cache = new Set();
@@ -213,10 +216,10 @@ Notes: ${programConfig.context_notes || 'None'}
 
     generateSignals();
     return () => { mounted = false; };
-  }, [sessions, employees, selectedCohort, context, data, programConfig, apiKey]);
+  }, [sessions, employees, selectedCohort, context, data, programConfig]);
 
   // Return early ONLY after hooks are declared to avoid Rules of Hooks violations
-  if (!apiKey) return null;
+  if (!apiKeyAvailable) return null;
 
   if (error) {
     return (

@@ -128,6 +128,10 @@ export interface ProgramConfig {
   account_name: string;
   sessions_per_employee: number;
   program_name?: string;
+  // Fix: Adding missing properties used in dashboards
+  program_title?: string;
+  program_start_date?: string;
+  program_type?: string;
 }
 
 export interface DashboardStats {
