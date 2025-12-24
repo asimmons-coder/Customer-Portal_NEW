@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { getDashboardSessions } from '../lib/dataFetcher';
-import { SessionWithEmployee } from '../types';
+import { getDashboardSessions, getProgramConfig } from '../lib/dataFetcher';
+import { SessionWithEmployee, ProgramConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { 
   Lightbulb, 
@@ -12,7 +12,8 @@ import {
   BrainCircuit,
   Users,
   MessageCircle,
-  Info
+  Info,
+  ChevronDown
 } from 'lucide-react';
 import ExecutiveSignals from './ExecutiveSignals';
 
@@ -26,9 +27,11 @@ const COLORS = {
 
 const ThemesDashboard: React.FC = () => {
   const [sessions, setSessions] = useState<SessionWithEmployee[]>([]);
+  const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<TimeRange>('6M');
+  const [timeRange, setTimeRange] = useState<TimeRange>('ALL');
+  const [selectedProgram, setSelectedProgram] = useState<string>('All Cohorts');
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -39,16 +42,44 @@ const ThemesDashboard: React.FC = () => {
         const { data: { session } } = await supabase.auth.getSession();
         const company = session?.user?.app_metadata?.company || '';
         
-        const data = await getDashboardSessions();
+        const [data, configData] = await Promise.all([
+          getDashboardSessions(),
+          getProgramConfig()
+        ]);
         
         // Filter by company
         const companyBase = company.split(' - ')[0].toLowerCase();
         const filteredData = data.filter(s => {
           const sessionAccount = ((s as any).account_name || '').toLowerCase();
+          const programTitle = ((s as any).program_title || '').toLowerCase();
+          
+          // Check if program_title starts with TWC (for Wonderful Company)
+          if (companyBase.includes('wonderful') && programTitle.startsWith('twc')) {
+            return true;
+          }
+          
+          // Special case: Wonderful Orchards is part of The Wonderful Company
+          if (companyBase.includes('wonderful') && sessionAccount.includes('wonderful')) {
+            return true;
+          }
+          
           return sessionAccount.includes(companyBase) || companyBase.includes(sessionAccount.split(' - ')[0]);
         });
         
+        // Filter program config by company and sort by start date
+        const filteredConfig = configData
+          .filter(p => {
+            const accountName = (p.account_name || '').toLowerCase();
+            return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
+          })
+          .sort((a, b) => {
+            const dateA = a.program_start_date ? new Date(a.program_start_date).getTime() : 0;
+            const dateB = b.program_start_date ? new Date(b.program_start_date).getTime() : 0;
+            return dateB - dateA; // Most recent first
+          });
+        
         setSessions(filteredData);
+        setProgramConfig(filteredConfig);
       } catch (err: any) {
         setError(err.message || 'Failed to load session data');
       } finally {
@@ -57,6 +88,12 @@ const ThemesDashboard: React.FC = () => {
     };
     fetchSessions();
   }, []);
+
+  // Get unique programs sorted by start date
+  const programs = useMemo(() => {
+    const uniquePrograms = [...new Set(programConfig.map(p => p.program_title).filter(Boolean))];
+    return ['All Cohorts', ...uniquePrograms];
+  }, [programConfig]);
 
   // --- Data Processing ---
   const processedData = useMemo(() => {
@@ -69,7 +106,7 @@ const ThemesDashboard: React.FC = () => {
     else if (timeRange === '12M') cutoffDate.setMonth(now.getMonth() - 12);
     else cutoffDate.setFullYear(1900); // ALL
 
-    // 1. Filter sessions
+    // 1. Filter sessions by time range AND program
     const validSessions = sessions.filter(s => {
       const d = new Date(s.session_date);
       const status = (s.status || '').toLowerCase();
@@ -77,6 +114,13 @@ const ThemesDashboard: React.FC = () => {
       const isCompleted = !status.includes('no show') && 
                           !status.includes('late cancel') && 
                           (status.includes('completed') || (status === '' && d < now));
+      
+      // Filter by program if selected
+      if (selectedProgram !== 'All Cohorts') {
+        const sessionProgram = (s as any).program_title || '';
+        if (sessionProgram !== selectedProgram) return false;
+      }
+      
       return isCompleted && d >= cutoffDate && d <= now;
     });
 
@@ -158,7 +202,7 @@ const ThemesDashboard: React.FC = () => {
       topComms: getTopThemes(subThemes.comms),
       totalSessions: validSessions.length
     };
-  }, [sessions, timeRange]);
+  }, [sessions, timeRange, selectedProgram]);
 
   if (loading) {
     return (
@@ -197,20 +241,37 @@ const ThemesDashboard: React.FC = () => {
           </p>
         </div>
 
-        <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex items-center overflow-x-auto w-full md:w-auto">
-          {(['3M', '6M', '12M', 'ALL'] as TimeRange[]).map((range) => (
-            <button
-              key={range}
-              onClick={() => setTimeRange(range)}
-              className={`px-3 py-2 md:px-4 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-                timeRange === range 
-                  ? 'bg-boon-dark text-white shadow-md' 
-                  : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-              }`}
+        <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+          {/* Program Filter Dropdown */}
+          <div className="relative">
+            <select
+              value={selectedProgram}
+              onChange={(e) => setSelectedProgram(e.target.value)}
+              className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-2 pr-10 text-sm font-semibold text-boon-dark shadow-sm cursor-pointer hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-boon-blue/20 min-w-[200px]"
             >
-              {range === 'ALL' ? 'All Time' : `Last ${range}`}
-            </button>
-          ))}
+              {programs.map((program) => (
+                <option key={program} value={program}>{program}</option>
+              ))}
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+
+          {/* Time Range Filter */}
+          <div className="bg-white p-1 rounded-xl shadow-sm border border-gray-200 flex items-center overflow-x-auto">
+            {(['3M', '6M', '12M', 'ALL'] as TimeRange[]).map((range) => (
+              <button
+                key={range}
+                onClick={() => setTimeRange(range)}
+                className={`px-3 py-2 md:px-4 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                  timeRange === range 
+                    ? 'bg-boon-dark text-white shadow-md' 
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                {range === 'ALL' ? 'All Time' : `Last ${range}`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

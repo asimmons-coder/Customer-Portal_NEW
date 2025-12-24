@@ -110,11 +110,12 @@ const MainPortalLayout: React.FC = () => {
         }
         setProgramTypeLoading(false);
 
-        // Fetch program titles for sidebar (filter by company)
+        // Fetch program titles for sidebar (sorted by start date, most recent first)
         const { data, error } = await supabase
-          .from('session_tracking')
-          .select('program_title')
-          .ilike('account_name', `%${company.split(' - ')[0]}%`);
+          .from('program_config')
+          .select('program_title, program_start_date')
+          .ilike('account_name', `%${company.split(' - ')[0]}%`)
+          .order('program_start_date', { ascending: false, nullsFirst: false });
 
         if (error) throw error;
 
@@ -123,7 +124,8 @@ const MainPortalLayout: React.FC = () => {
             data.map(d => d.program_title)
               .filter(p => p && p.trim().length > 0)
           )] as string[];
-          setPrograms(uniquePrograms.sort());
+          // Already sorted by start date from query
+          setPrograms(uniquePrograms);
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);

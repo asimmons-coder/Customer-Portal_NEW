@@ -130,13 +130,32 @@ const HomeDashboard: React.FC = () => {
     fetchData();
   }, []);
 
-  // --- Derived Cohort List ---
+  // --- Derived Cohort List (sorted by program start date, most recent first) ---
   const cohorts = useMemo(() => {
-    // Prefer program_title (human-readable), fallback to program_name
+    // Build a map of program_title -> start_date from programConfig
+    const startDateMap = new Map<string, Date>();
+    programConfig.forEach(p => {
+      if (p.program_title && p.program_start_date) {
+        startDateMap.set(p.program_title, new Date(p.program_start_date));
+      }
+    });
+    
+    // Get unique programs from sessions
     const sessionCohorts = sessions.map(s => (s as any).program_title || s.program_name || s.cohort || s.program).filter(Boolean);
-    const unique = Array.from(new Set(sessionCohorts)).sort();
+    const unique = Array.from(new Set(sessionCohorts));
+    
+    // Sort by start date (most recent first), then alphabetically for those without dates
+    unique.sort((a, b) => {
+      const dateA = startDateMap.get(a);
+      const dateB = startDateMap.get(b);
+      if (dateA && dateB) return dateB.getTime() - dateA.getTime();
+      if (dateA) return -1; // a has date, b doesn't -> a first
+      if (dateB) return 1;  // b has date, a doesn't -> b first
+      return a.localeCompare(b); // Both no dates -> alphabetical
+    });
+    
     return ['All Cohorts', ...unique];
-  }, [sessions]);
+  }, [sessions, programConfig]);
 
   const handleCohortChange = (cohort: string) => {
     setSearchParams({ cohort });
