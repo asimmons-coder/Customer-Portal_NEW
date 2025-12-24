@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getDashboardSessions, getCompetencyScores, getSurveyResponses, getProgramConfig } from '../lib/dataFetcher';
 import { FileDown, Loader2, X } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
 import jsPDF from 'jspdf';
 
 interface ReportGeneratorProps {
@@ -32,25 +31,7 @@ interface ReportData {
   testimonials: string[];
   programsForPeriod: { name: string; startDate: string }[];
   programPeriodLabel: string;
-  aiSummary: string;
 }
-
-const getApiKey = () => {
-  try {
-    // Try Vite's import.meta.env first
-    if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
-      const env = (import.meta as any).env;
-      return env.VITE_API_KEY || env.VITE_GEMINI_API_KEY || env.API_KEY;
-    }
-    // Fallback to process.env
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env.API_KEY || process.env.GEMINI_API_KEY;
-    }
-  } catch (e) {
-    // Silence errors
-  }
-  return undefined;
-};
 
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({ 
   companyName, 
@@ -335,55 +316,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     }
     // If single program selected, programsForPeriod stays empty (won't show section)
     
-    // Generate AI summary
-    setProgress('Generating AI insights...');
-    let aiSummary = '';
-    
-    // Build a good fallback summary
-    const fallbackSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} coaching sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'} (+${competencyStats[0]?.change || 0}%).`;
-    
-    const apiKey = getApiKey();
-    if (apiKey && completedSessions.length > 0) {
-      try {
-        const ai = new GoogleGenAI({ apiKey });
-        
-        const summaryPrompt = `Write exactly 2 complete sentences summarizing this coaching program's impact. Use specific numbers. No bullet points or incomplete thoughts.
-
-Data:
-- ${completedSessions.length} coaching sessions completed
-- ${uniqueEmployees} participants
-- ${Math.round(overallGrowth)}% competency growth
-- Top improvements: ${competencyStats.slice(0, 3).map(c => `${c.name} +${c.change}%`).join(', ')}
-- NPS score: +${nps}
-- Coach rating: ${(csat).toFixed(1)}/10
-
-Write a compelling 2-sentence summary. End with a period.`;
-
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: summaryPrompt,
-          config: {
-            maxOutputTokens: 300
-          }
-        });
-        
-        const text = response.text?.trim() || '';
-        
-        // Validate: must be >80 chars and end with proper punctuation
-        if (text.length > 80 && /[.!]$/.test(text)) {
-          aiSummary = text;
-        } else {
-          // AI response incomplete, use fallback
-          aiSummary = fallbackSummary;
-        }
-      } catch (err) {
-        console.error('AI summary generation failed:', err);
-        aiSummary = fallbackSummary;
-      }
-    } else {
-      aiSummary = fallbackSummary;
-    }
-    
     return {
       sessions: {
         total: sessions.length,
@@ -404,8 +336,7 @@ Write a compelling 2-sentence summary. End with a period.`;
       themes,
       testimonials: allTestimonials,
       programsForPeriod,
-      programPeriodLabel,
-      aiSummary
+      programPeriodLabel
     };
   };
 
@@ -441,43 +372,67 @@ Write a compelling 2-sentence summary. End with a period.`;
         }
       };
       
+      // Helper to load image as base64
+      const loadImage = async (url: string): Promise<string | null> => {
+        try {
+          const response = await fetch(url);
+          const blob = await response.blob();
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = () => resolve(null);
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return null;
+        }
+      };
+      
       // === PAGE 1 ===
       
       // Header
       drawRect(0, 0, pageWidth, 40, '#466FF6');
       
+      // Add Boon logo (left side)
+      try {
+        const boonLogoUrl = 'https://storage.googleapis.com/boon-public-assets/Wordmark_White.png';
+        const boonLogoData = await loadImage(boonLogoUrl);
+        if (boonLogoData) {
+          pdf.addImage(boonLogoData, 'PNG', margin, 12, 35, 16);
+        }
+      } catch (e) {
+        // If logo fails, just show text
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('BOON', margin, 24);
+      }
+      
+      // Add client logo (right side) if available
+      if (clientLogo) {
+        try {
+          const clientLogoData = await loadImage(clientLogo);
+          if (clientLogoData) {
+            pdf.addImage(clientLogoData, 'PNG', pageWidth - margin - 30, 10, 30, 20);
+          }
+        } catch (e) {
+          // Skip if client logo fails
+        }
+      }
+      
+      // Title and date (centered)
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(22);
+      pdf.setFontSize(18);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Coaching Impact Report', margin, 22);
+      pdf.text('Coaching Impact Report', pageWidth / 2, 18, { align: 'center' });
       
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(companyName || 'Executive Summary', margin, 32);
-      
-      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      pdf.text(today, pageWidth - margin - 45, 32);
-      
-      y = 52;
-      
-      // Executive Summary
-      pdf.setTextColor(31, 41, 55);
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Executive Summary', margin, y);
-      y += 8;
-      
-      // Calculate box height based on AI summary length
       pdf.setFontSize(10);
-      const summaryLines = pdf.splitTextToSize(data.aiSummary, pageWidth - 2 * margin - 10);
-      const summaryBoxHeight = Math.max(20, summaryLines.length * 5 + 10);
-      
-      drawRect(margin, y, pageWidth - 2 * margin, summaryBoxHeight, '#EFF6FF', 3);
       pdf.setFont('helvetica', 'normal');
-      const rgb = hexToRgb('#1E40AF');
-      pdf.setTextColor(rgb.r, rgb.g, rgb.b);
-      pdf.text(summaryLines, margin + 5, y + 8);
-      y += summaryBoxHeight + 8;
+      const subtitle = companyName || 'Executive Summary';
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      pdf.text(`${subtitle}  •  ${today}`, pageWidth / 2, 30, { align: 'center' });
+      
+      y = 50;
       
       // Programs section (only show if not single program selected)
       if (data.programsForPeriod.length > 0 && data.programPeriodLabel) {
