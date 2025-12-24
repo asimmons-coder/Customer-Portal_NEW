@@ -211,7 +211,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         const scoreB = impactWords.filter(w => b.toLowerCase().includes(w)).length;
         return (scoreB + b.length / 100) - (scoreA + a.length / 100);
       })
-      .slice(0, 2);
+      .slice(0, 5);
     
     return {
       sessions: {
@@ -298,7 +298,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       pdf.setFont('helvetica', 'normal');
       const rgb = hexToRgb('#1E40AF');
       pdf.setTextColor(rgb.r, rgb.g, rgb.b);
-      const summaryText = `Your team showed a ${data.impact.overallGrowth}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`;
+      const summaryText = `Your team showed a ${Math.round(data.impact.overallGrowth)}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`;
       const summaryLines = pdf.splitTextToSize(summaryText, pageWidth - 2 * margin - 10);
       pdf.text(summaryLines, margin + 5, y + 8);
       y += 28;
@@ -343,32 +343,36 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       
       const chartHeight = 35;
       const chartWidth = pageWidth - 2 * margin;
-      const barWidth = (chartWidth - 30) / 6;
+      const barSpacing = chartWidth / 6;
+      const singleBarWidth = 18;
       const maxCount = Math.max(...data.sessions.monthlyTrend.map(m => m.count), 1);
       
       drawRect(margin, y, chartWidth, chartHeight, '#F9FAFB', 3);
       
       data.sessions.monthlyTrend.forEach((m, i) => {
-        const barHeight = (m.count / maxCount) * (chartHeight - 15);
-        const x = margin + 10 + i * barWidth;
-        const barY = y + chartHeight - 8 - barHeight;
+        const barHeight = (m.count / maxCount) * (chartHeight - 18);
+        const centerX = margin + (i * barSpacing) + (barSpacing / 2);
+        const barX = centerX - (singleBarWidth / 2);
+        const barY = y + chartHeight - 10 - barHeight;
         
         // Bar
-        drawRect(x + 2, barY, barWidth - 8, barHeight, '#466FF6', 2);
-        
-        // Count label
-        if (m.count > 0) {
-          pdf.setTextColor(70, 111, 246);
-          pdf.setFontSize(7);
-          pdf.setFont('helvetica', 'bold');
-          pdf.text(m.count.toString(), x + barWidth / 2 - 2, barY - 2);
+        if (barHeight > 0) {
+          drawRect(barX, barY, singleBarWidth, barHeight, '#466FF6', 2);
         }
         
-        // Month label
+        // Count label (centered above bar)
+        if (m.count > 0) {
+          pdf.setTextColor(70, 111, 246);
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(m.count.toString(), centerX, barY - 2, { align: 'center' });
+        }
+        
+        // Month label (centered below)
         pdf.setTextColor(107, 114, 128);
         pdf.setFontSize(7);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(m.month, x + barWidth / 2 - 2, y + chartHeight - 2);
+        pdf.text(m.month, centerX, y + chartHeight - 2, { align: 'center' });
       });
       y += chartHeight + 12;
       
@@ -398,12 +402,16 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       });
       y += 5;
       
-      // Top Coaching Themes
+      // === PAGE 2 ===
+      pdf.addPage();
+      y = margin;
+      
+      // Top Coaching Themes (moved to page 2)
       pdf.setTextColor(31, 41, 55);
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Top Coaching Themes', margin, y);
-      y += 8;
+      y += 10;
       
       if (data.themes.length > 0) {
         const totalThemes = data.themes.reduce((sum, t) => sum + t.count, 0);
@@ -411,7 +419,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         
         data.themes.slice(0, 5).forEach((theme, i) => {
           const pct = Math.round((theme.count / totalThemes) * 100);
-          const barW = (pct / 100) * (pageWidth - 2 * margin - 60);
+          const maxBarWidth = pageWidth - 2 * margin - 80;
+          const barW = (pct / 100) * maxBarWidth;
           
           drawRect(margin, y, barW, 8, themeColors[i % themeColors.length], 2);
           
@@ -419,14 +428,14 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
           pdf.setFontSize(8);
           pdf.setFont('helvetica', 'normal');
           
-          // Truncate long theme names
-          const displayName = theme.name.length > 30 ? theme.name.substring(0, 30) + '...' : theme.name;
-          pdf.text(displayName, margin + barW + 4, y + 6);
+          // Full theme name (more space now)
+          const displayName = theme.name.length > 40 ? theme.name.substring(0, 40) + '...' : theme.name;
+          pdf.text(displayName, margin + maxBarWidth + 8, y + 6);
           
           pdf.setTextColor(107, 114, 128);
-          pdf.text(`${pct}%`, pageWidth - margin - 10, y + 6);
+          pdf.text(`${pct}%`, pageWidth - margin - 8, y + 6);
           
-          y += 11;
+          y += 12;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -435,9 +444,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         y += 12;
       }
       
-      // === PAGE 2 ===
-      pdf.addPage();
-      y = margin;
+      y += 8;
       
       // Testimonials Header
       pdf.setTextColor(31, 41, 55);
@@ -480,13 +487,13 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       pdf.setTextColor(156, 163, 175);
       pdf.setFontSize(8);
       pdf.setFont('helvetica', 'normal');
-      pdf.text('Generated by Boon Health  •  Page 2 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text('Generated by Boon  •  Page 2 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
       
       // Footer on page 1
       pdf.setPage(1);
       pdf.setTextColor(156, 163, 175);
       pdf.setFontSize(8);
-      pdf.text('Generated by Boon Health  •  Page 1 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      pdf.text('Generated by Boon  •  Page 1 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
       
       // Save
       const fileName = `${companyName?.replace(/\s+/g, '_') || 'Coaching'}_Impact_Report_${new Date().toISOString().split('T')[0]}.pdf`;
