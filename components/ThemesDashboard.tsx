@@ -275,7 +275,9 @@ const ThemesDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* ExecutiveSignals hidden for now
       <ExecutiveSignals context="Coaching Themes" data={processedData} />
+      */}
 
       {/* Main Trend Chart */}
       <div className="bg-white rounded-3xl p-4 md:p-8 shadow-sm border border-gray-100">

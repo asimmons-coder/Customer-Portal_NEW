@@ -512,11 +512,13 @@ const HomeDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* ExecutiveSignals hidden for now - only showing in PDF reports
       <ExecutiveSignals 
         context="Dashboard"
         data={stats}
         selectedCohort={selectedCohort}
       />
+      */}
 
       {/* Hero Section */}
       {/* Show improvement hero if we have competency data with growth, otherwise show progress */}

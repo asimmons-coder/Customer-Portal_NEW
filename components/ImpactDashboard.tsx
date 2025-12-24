@@ -266,7 +266,9 @@ const ImpactDashboard: React.FC = () => {
         </select>
       </div>
 
+      {/* ExecutiveSignals hidden for now
       <ExecutiveSignals context="Impact" data={{ overallStats, competencyStats }} />
+      */}
 
       {!hasImpactData ? (
           // --- ZERO STATE / BASELINE VIEW ---

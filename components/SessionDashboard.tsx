@@ -435,7 +435,9 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         </button>
       </div>
 
+      {/* ExecutiveSignals hidden for now
       <ExecutiveSignals context="Sessions" data={{ filteredData, totalSessions, totalCompleted, avgSessions, adoptionRate, ...surveyMetrics }} />
+      */}
 
       {showSetup && <SetupGuide />}
 

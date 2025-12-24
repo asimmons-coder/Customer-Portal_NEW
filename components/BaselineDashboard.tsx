@@ -346,13 +346,14 @@ const BaselineDashboard: React.FC = () => {
         </div>
       </div>
       
-      {/* Executive Signals AI Panel */}
+      {/* Executive Signals AI Panel - hidden for now
       <ExecutiveSignals 
         context="Baseline" 
         data={stats} 
         baselineData={filteredData}
         selectedCohort={selectedCohort}
       />
+      */}
 
       {!stats ? (
         <div className="text-center p-12 bg-white rounded-xl border border-gray-200 text-gray-500">

@@ -344,40 +344,41 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       try {
         const ai = new GoogleGenAI({ apiKey });
         
-        const summaryPrompt = `Generate a 2-3 sentence executive summary for a coaching program report. Be specific and use the data provided. Do not use generic phrases.
+        const summaryPrompt = `Write a 2-3 sentence executive summary for this coaching program report. Be specific with numbers. No bullet points.
 
-Data:
-- Company: ${companyName}
-- Sessions completed: ${completedSessions.length}
-- Participants: ${uniqueEmployees}
-- Overall competency growth: ${Math.round(overallGrowth)}%
-- Top growth areas: ${competencyStats.slice(0, 3).map(c => `${c.name} (+${c.change}%)`).join(', ')}
-- NPS Score: +${nps}
-- Coach satisfaction: ${(csat).toFixed(1)}/10
-- Programs in this period: ${programsForPeriod.length} (${programsForPeriod.map(p => p.name).join(', ')})
-- Top coaching themes: ${themes.slice(0, 3).map(t => t.name).join(', ')}
+Company: ${companyName}
+Sessions: ${completedSessions.length} completed
+Participants: ${uniqueEmployees}
+Competency Growth: ${Math.round(overallGrowth)}%
+Top Growth: ${competencyStats.slice(0, 3).map(c => `${c.name} +${c.change}%`).join(', ')}
+NPS: +${nps}
+Coach Rating: ${(csat).toFixed(1)}/10
+Themes: ${themes.slice(0, 3).map(t => t.name).join(', ')}
 
-Write a compelling summary highlighting the key achievements and impact. Start with the most impressive metric.`;
+Start with the most impressive achievement. Be concise and impactful.`;
 
         const response = await ai.models.generateContent({
           model: 'gemini-3-flash-preview',
           contents: summaryPrompt,
           config: {
-            maxOutputTokens: 200
+            maxOutputTokens: 500
           }
         });
         
-        if (response.text) {
+        if (response.text && response.text.length > 50) {
           aiSummary = response.text.trim();
+        } else {
+          // Response too short, use fallback
+          aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
         }
       } catch (err) {
         console.error('AI summary generation failed:', err);
         // Fall back to template summary
-        aiSummary = `Your team showed a ${Math.round(overallGrowth)}% overall improvement in leadership competencies, with ${completedSessions.length} coaching sessions completed across ${uniqueEmployees} participants.`;
+        aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
       }
     } else {
       // Fallback summary without AI
-      aiSummary = `Your team showed a ${Math.round(overallGrowth)}% overall improvement in leadership competencies, with ${completedSessions.length} coaching sessions completed across ${uniqueEmployees} participants.`;
+      aiSummary = `Your team achieved a +${nps} NPS score and ${(csat).toFixed(1)}/10 coach rating across ${completedSessions.length} sessions with ${uniqueEmployees} participants. Leadership competencies improved ${Math.round(overallGrowth)}% overall, with strongest gains in ${competencyStats[0]?.name || 'key areas'}.`;
     }
     
     return {
@@ -481,15 +482,15 @@ Write a compelling summary highlighting the key achievements and impact. Start w
         pdf.setFontSize(9);
         pdf.setFont('helvetica', 'bold');
         pdf.text(`${data.programPeriodLabel}:`, margin, y);
+        y += 5;
         
         pdf.setFont('helvetica', 'normal');
         pdf.setTextColor(70, 111, 246);
-        const programNames = data.programsForPeriod.map(p => p.name).slice(0, 3).join('  •  ');
-        const moreText = data.programsForPeriod.length > 3 ? `  (+${data.programsForPeriod.length - 3} more)` : '';
-        const programText = programNames + moreText;
-        const programLines = pdf.splitTextToSize(programText, pageWidth - 2 * margin);
-        pdf.text(programLines, margin, y + 5);
-        y += 5 + (programLines.length * 4) + 4;
+        // Show ALL programs, wrapped across multiple lines
+        const programNames = data.programsForPeriod.map(p => p.name).join('  •  ');
+        const programLines = pdf.splitTextToSize(programNames, pageWidth - 2 * margin);
+        pdf.text(programLines, margin, y);
+        y += (programLines.length * 4) + 6;
       }
       
       // Key Metrics
@@ -595,7 +596,7 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       pdf.addPage();
       y = margin;
       
-      // Top Coaching Themes (moved to page 2)
+      // Top Coaching Themes - Horizontal bar chart style
       pdf.setTextColor(31, 41, 55);
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
@@ -605,28 +606,37 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       if (data.themes.length > 0) {
         const totalThemes = data.themes.reduce((sum, t) => sum + t.count, 0);
         const themeColors = ['#466FF6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981'];
-        const maxBarWidth = 60; // Fixed max bar width
+        const barMaxWidth = pageWidth - 2 * margin - 50; // Leave space for percentage
         
         data.themes.slice(0, 5).forEach((theme, i) => {
           const pct = Math.round((theme.count / totalThemes) * 100);
-          const barW = (pct / 100) * maxBarWidth;
+          const barW = (pct / 100) * barMaxWidth;
           
-          // Draw bar
-          drawRect(margin, y, barW, 10, themeColors[i % themeColors.length], 3);
-          
-          // Theme name - right after bar
+          // Theme name first
           pdf.setTextColor(31, 41, 55);
           pdf.setFontSize(9);
           pdf.setFont('helvetica', 'normal');
-          const displayName = theme.name.length > 35 ? theme.name.substring(0, 35) + '...' : theme.name;
-          pdf.text(displayName, margin + maxBarWidth + 8, y + 7);
+          const displayName = theme.name.length > 45 ? theme.name.substring(0, 45) + '...' : theme.name;
+          pdf.text(displayName, margin, y);
+          y += 5;
           
-          // Percentage - right aligned
-          pdf.setTextColor(107, 114, 128);
+          // Draw background bar (gray)
+          drawRect(margin, y, barMaxWidth, 6, '#E5E7EB', 2);
+          
+          // Draw filled bar (colored)
+          if (barW > 0) {
+            drawRect(margin, y, barW, 6, themeColors[i % themeColors.length], 2);
+          }
+          
+          // Percentage at end
+          pdf.setTextColor(themeColors[i % themeColors.length].replace('#', ''));
+          const rgb = hexToRgb(themeColors[i % themeColors.length]);
+          pdf.setTextColor(rgb.r, rgb.g, rgb.b);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(`${pct}%`, pageWidth - margin, y + 7, { align: 'right' });
+          pdf.setFontSize(9);
+          pdf.text(`${pct}%`, pageWidth - margin, y + 5, { align: 'right' });
           
-          y += 14;
+          y += 12;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -635,7 +645,7 @@ Write a compelling summary highlighting the key achievements and impact. Start w
         y += 12;
       }
       
-      y += 10;
+      y += 8;
       
       // Testimonials Header
       pdf.setTextColor(31, 41, 55);
@@ -644,29 +654,51 @@ Write a compelling summary highlighting the key achievements and impact. Start w
       pdf.text('What Participants Are Saying', margin, y);
       y += 10;
       
+      const footerSpace = 20; // Reserve space for footer
+      
       if (data.testimonials.length > 0) {
-        data.testimonials.forEach((quote) => {
+        data.testimonials.forEach((quote, index) => {
           // Calculate height needed
           pdf.setFontSize(9);
-          const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 20);
-          const boxHeight = Math.min(quoteLines.length * 5 + 12, 50);
+          const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 25);
+          const boxHeight = Math.min(quoteLines.length * 4.5 + 14, 45);
+          
+          // Check if we need a new page
+          if (y + boxHeight > pageHeight - footerSpace) {
+            // Add footer to current page before creating new one
+            pdf.setTextColor(156, 163, 175);
+            pdf.setFontSize(8);
+            pdf.setFont('helvetica', 'normal');
+            const currentPage = pdf.getCurrentPageInfo().pageNumber;
+            pdf.text(`Generated by Boon  •  Page ${currentPage}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            
+            pdf.addPage();
+            y = margin;
+            
+            // Continue header on new page
+            pdf.setTextColor(31, 41, 55);
+            pdf.setFontSize(12);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('What Participants Are Saying (continued)', margin, y);
+            y += 10;
+          }
           
           drawRect(margin, y, pageWidth - 2 * margin, boxHeight, '#FEF3C7', 4);
           
           // Quote mark
           pdf.setTextColor(245, 158, 11);
-          pdf.setFontSize(18);
+          pdf.setFontSize(16);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('"', margin + 6, y + 12);
+          pdf.text('"', margin + 5, y + 10);
           
           // Quote text
           const quoteRgb = hexToRgb('#78350F');
           pdf.setTextColor(quoteRgb.r, quoteRgb.g, quoteRgb.b);
-          pdf.setFontSize(9);
+          pdf.setFontSize(8);
           pdf.setFont('helvetica', 'italic');
-          pdf.text(quoteLines.slice(0, 6), margin + 16, y + 10);
+          pdf.text(quoteLines.slice(0, 8), margin + 14, y + 8);
           
-          y += boxHeight + 8;
+          y += boxHeight + 6;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -674,17 +706,15 @@ Write a compelling summary highlighting the key achievements and impact. Start w
         pdf.text('No testimonials available', margin, y + 5);
       }
       
-      // Footer on page 2
-      pdf.setTextColor(156, 163, 175);
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text('Generated by Boon  •  Page 2 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
-      
-      // Footer on page 1
-      pdf.setPage(1);
-      pdf.setTextColor(156, 163, 175);
-      pdf.setFontSize(8);
-      pdf.text('Generated by Boon  •  Page 1 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      // Add footer to all pages
+      const totalPages = pdf.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setTextColor(156, 163, 175);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(`Generated by Boon  •  Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+      }
       
       // Save
       const fileName = `${companyName?.replace(/\s+/g, '_') || 'Coaching'}_Impact_Report_${new Date().toISOString().split('T')[0]}.pdf`;
