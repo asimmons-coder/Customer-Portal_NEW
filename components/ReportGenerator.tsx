@@ -16,6 +16,7 @@ interface ReportData {
     completed: number;
     employees: number;
     utilization: number;
+    monthlyTrend: { month: string; count: number }[];
   };
   impact: {
     overallGrowth: number;
@@ -26,6 +27,7 @@ interface ReportData {
     nps: number;
     csat: number;
   };
+  themes: { name: string; count: number }[];
   testimonials: string[];
 }
 
@@ -41,7 +43,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   const [selectedProgram, setSelectedProgram] = useState<string>('all');
   const [programs, setPrograms] = useState<string[]>([]);
 
-  // Fetch available programs when modal opens
   const handleOpen = async () => {
     setIsOpen(true);
     try {
@@ -66,26 +67,20 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const company = session?.user?.app_metadata?.company || '';
     const companyBase = company.split(' - ')[0].toLowerCase();
     
-    // Helper to check company match
     const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
       if (!company) return false;
-      
-      // Check if program_title starts with TWC (for Wonderful Company)
       if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
         return true;
       }
-      
       if (!value) return false;
       const valueBase = value.toLowerCase();
-      
       if (companyBase.includes('wonderful') && valueBase.includes('wonderful')) {
         return true;
       }
-      
       return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
     };
     
-    // Fetch session data using dataFetcher
+    // Fetch session data
     setProgress('Fetching session data...');
     const allSessions = await getDashboardSessions();
     const sessions = allSessions.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
@@ -93,12 +88,60 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const completedSessions = sessions.filter(s => (s as any).status === 'Completed');
     const uniqueEmployees = new Set(sessions.map(s => (s as any).employee_name?.toLowerCase()).filter(Boolean)).size;
     
+    // Calculate monthly trend (last 6 months)
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    
+    const monthlyMap = new Map<string, number>();
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+      const key = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+      monthlyMap.set(key, 0);
+    }
+    
+    completedSessions.forEach(s => {
+      const date = new Date((s as any).session_date);
+      if (date >= sixMonthsAgo) {
+        const key = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+        if (monthlyMap.has(key)) {
+          monthlyMap.set(key, (monthlyMap.get(key) || 0) + 1);
+        }
+      }
+    });
+    
+    const monthlyTrend = Array.from(monthlyMap.entries()).map(([month, count]) => ({ month, count }));
+    
+    // Extract coaching themes
+    setProgress('Analyzing coaching themes...');
+    const themeCounts = new Map<string, number>();
+    
+    sessions.forEach(s => {
+      const leadership = (s as any).leadership_management_skills || '';
+      const communication = (s as any).communication_skills || '';
+      const wellbeing = (s as any).mental_well_being || '';
+      
+      [leadership, communication, wellbeing].forEach(field => {
+        if (field) {
+          field.split(';').forEach((theme: string) => {
+            const t = theme.trim();
+            if (t && t.length > 2) {
+              themeCounts.set(t, (themeCounts.get(t) || 0) + 1);
+            }
+          });
+        }
+      });
+    });
+    
+    const themes = Array.from(themeCounts.entries())
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    
     // Fetch competency scores
     setProgress('Analyzing competency growth...');
     const allScores = await getCompetencyScores();
     const scores = allScores.filter(c => matchesCompany((c as any).account, (c as any).program_title));
     
-    // Group scores by competency and calculate averages
     const competencyMap = new Map<string, { preSum: number; postSum: number; count: number }>();
     
     scores.forEach(s => {
@@ -149,19 +192,34 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       ? csatScores.reduce((a, b) => a + b, 0) / csatScores.length
       : 0;
     
-    // Get testimonials
-    setProgress('Collecting testimonials...');
-    const testimonials = surveys
+    // Get BETTER testimonials - filter for impactful quotes
+    setProgress('Selecting best testimonials...');
+    const allTestimonials = surveys
       .flatMap(s => [(s as any).feedback_learned, (s as any).feedback_insight])
-      .filter(t => t && t.length > 50)
-      .slice(0, 3);
+      .filter(t => t && typeof t === 'string')
+      .filter(t => {
+        // Must be substantial (150+ chars)
+        if (t.length < 150) return false;
+        // Must be a complete thought (has punctuation)
+        if (!/[.!?]/.test(t)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        // Score testimonials - prefer ones with impact words
+        const impactWords = ['helped', 'learned', 'improved', 'transformed', 'valuable', 'breakthrough', 'grateful', 'recommend', 'excellent', 'amazing', 'coach'];
+        const scoreA = impactWords.filter(w => a.toLowerCase().includes(w)).length;
+        const scoreB = impactWords.filter(w => b.toLowerCase().includes(w)).length;
+        return (scoreB + b.length / 100) - (scoreA + a.length / 100);
+      })
+      .slice(0, 2);
     
     return {
       sessions: {
         total: sessions.length,
         completed: completedSessions.length,
         employees: uniqueEmployees,
-        utilization: sessions.length > 0 ? Math.round((completedSessions.length / sessions.length) * 100) : 0
+        utilization: sessions.length > 0 ? Math.round((completedSessions.length / sessions.length) * 100) : 0,
+        monthlyTrend
       },
       impact: {
         overallGrowth: Math.round(overallGrowth * 10) / 10,
@@ -172,7 +230,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         nps,
         csat: Math.round(csat * 10) / 10
       },
-      testimonials
+      themes,
+      testimonials: allTestimonials
     };
   };
 
@@ -189,14 +248,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       const margin = 20;
       let y = margin;
       
-      // Helper functions
-      const addText = (text: string, size: number, style: 'normal' | 'bold' = 'normal', color: string = '#1F2937') => {
-        pdf.setFontSize(size);
-        pdf.setFont('helvetica', style);
-        const rgb = hexToRgb(color);
-        pdf.setTextColor(rgb.r, rgb.g, rgb.b);
-      };
-      
       const hexToRgb = (hex: string) => {
         const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
         return result ? {
@@ -206,58 +257,61 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         } : { r: 0, g: 0, b: 0 };
       };
       
-      const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number, color: string) => {
+      const drawRect = (x: number, y: number, w: number, h: number, color: string, radius?: number) => {
         const rgb = hexToRgb(color);
         pdf.setFillColor(rgb.r, rgb.g, rgb.b);
-        pdf.roundedRect(x, y, w, h, r, r, 'F');
+        if (radius) {
+          pdf.roundedRect(x, y, w, h, radius, radius, 'F');
+        } else {
+          pdf.rect(x, y, w, h, 'F');
+        }
       };
       
-      // === HEADER ===
-      // Gradient header bar
-      drawRoundedRect(0, 0, pageWidth, 45, 0, '#466FF6');
+      // === PAGE 1 ===
       
-      // Title
-      addText('Coaching Impact Report', 24, 'bold', '#FFFFFF');
-      pdf.text('Coaching Impact Report', margin, 25);
+      // Header
+      drawRect(0, 0, pageWidth, 40, '#466FF6');
       
-      // Subtitle with company name
-      addText(companyName || 'Executive Summary', 12, 'normal', '#FFFFFF');
-      pdf.text(companyName || 'Executive Summary', margin, 35);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(22);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Coaching Impact Report', margin, 22);
       
-      // Date
-      const today = new Date().toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      });
-      addText(today, 10, 'normal', '#FFFFFF');
-      pdf.text(today, pageWidth - margin - 40, 35);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(companyName || 'Executive Summary', margin, 32);
       
-      y = 60;
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      pdf.text(today, pageWidth - margin - 45, 32);
       
-      // === EXECUTIVE SUMMARY ===
-      addText('Executive Summary', 16, 'bold', '#1F2937');
+      y = 52;
+      
+      // Executive Summary
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
       pdf.text('Executive Summary', margin, y);
-      y += 10;
+      y += 8;
       
-      // Summary box
-      drawRoundedRect(margin, y, pageWidth - 2 * margin, 25, 3, '#F0F9FF');
-      addText(`Your team showed a ${data.impact.overallGrowth}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`, 10, 'normal', '#1E40AF');
-      const summaryLines = pdf.splitTextToSize(
-        `Your team showed a ${data.impact.overallGrowth}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`,
-        pageWidth - 2 * margin - 10
-      );
-      pdf.text(summaryLines, margin + 5, y + 10);
-      y += 35;
+      drawRect(margin, y, pageWidth - 2 * margin, 20, '#EFF6FF', 3);
+      pdf.setFontSize(10);
+      pdf.setFont('helvetica', 'normal');
+      const rgb = hexToRgb('#1E40AF');
+      pdf.setTextColor(rgb.r, rgb.g, rgb.b);
+      const summaryText = `Your team showed a ${data.impact.overallGrowth}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`;
+      const summaryLines = pdf.splitTextToSize(summaryText, pageWidth - 2 * margin - 10);
+      pdf.text(summaryLines, margin + 5, y + 8);
+      y += 28;
       
-      // === KEY METRICS ===
-      addText('Key Metrics', 16, 'bold', '#1F2937');
+      // Key Metrics
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
       pdf.text('Key Metrics', margin, y);
-      y += 10;
+      y += 8;
       
-      // Metric cards
       const cardWidth = (pageWidth - 2 * margin - 15) / 4;
-      const cardHeight = 35;
+      const cardHeight = 28;
       const metrics = [
         { label: 'Sessions', value: data.sessions.completed.toString(), color: '#466FF6' },
         { label: 'Participants', value: data.sessions.employees.toString(), color: '#10B981' },
@@ -267,73 +321,172 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       
       metrics.forEach((metric, i) => {
         const x = margin + i * (cardWidth + 5);
-        drawRoundedRect(x, y, cardWidth, cardHeight, 3, metric.color);
+        drawRect(x, y, cardWidth, cardHeight, metric.color, 4);
         
-        addText(metric.value, 18, 'bold', '#FFFFFF');
-        pdf.text(metric.value, x + cardWidth / 2, y + 15, { align: 'center' });
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(metric.value, x + cardWidth / 2, y + 12, { align: 'center' });
         
-        addText(metric.label, 9, 'normal', '#FFFFFF');
-        pdf.text(metric.label, x + cardWidth / 2, y + 25, { align: 'center' });
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(metric.label, x + cardWidth / 2, y + 20, { align: 'center' });
       });
-      y += cardHeight + 15;
+      y += cardHeight + 12;
       
-      // === COMPETENCY GROWTH ===
-      addText('Top Areas of Growth', 16, 'bold', '#1F2937');
+      // Session Trend Chart
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Session Trend (Last 6 Months)', margin, y);
+      y += 8;
+      
+      const chartHeight = 35;
+      const chartWidth = pageWidth - 2 * margin;
+      const barWidth = (chartWidth - 30) / 6;
+      const maxCount = Math.max(...data.sessions.monthlyTrend.map(m => m.count), 1);
+      
+      drawRect(margin, y, chartWidth, chartHeight, '#F9FAFB', 3);
+      
+      data.sessions.monthlyTrend.forEach((m, i) => {
+        const barHeight = (m.count / maxCount) * (chartHeight - 15);
+        const x = margin + 10 + i * barWidth;
+        const barY = y + chartHeight - 8 - barHeight;
+        
+        // Bar
+        drawRect(x + 2, barY, barWidth - 8, barHeight, '#466FF6', 2);
+        
+        // Count label
+        if (m.count > 0) {
+          pdf.setTextColor(70, 111, 246);
+          pdf.setFontSize(7);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(m.count.toString(), x + barWidth / 2 - 2, barY - 2);
+        }
+        
+        // Month label
+        pdf.setTextColor(107, 114, 128);
+        pdf.setFontSize(7);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(m.month, x + barWidth / 2 - 2, y + chartHeight - 2);
+      });
+      y += chartHeight + 12;
+      
+      // Top Areas of Growth
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
       pdf.text('Top Areas of Growth', margin, y);
-      y += 10;
+      y += 8;
       
-      data.impact.topCompetencies.forEach((comp, i) => {
-        // Background bar
-        drawRoundedRect(margin, y, pageWidth - 2 * margin, 12, 2, '#F3F4F6');
+      data.impact.topCompetencies.forEach((comp) => {
+        drawRect(margin, y, pageWidth - 2 * margin, 10, '#F3F4F6', 2);
         
-        // Progress bar
-        const progressWidth = Math.min((comp.change / 15) * (pageWidth - 2 * margin - 60), pageWidth - 2 * margin - 60);
-        drawRoundedRect(margin, y, progressWidth, 12, 2, '#10B981');
+        const progressWidth = Math.min((comp.change / 15) * (pageWidth - 2 * margin - 50), pageWidth - 2 * margin - 50);
+        drawRect(margin, y, progressWidth, 10, '#10B981', 2);
         
-        // Label
-        addText(comp.name, 10, 'normal', '#1F2937');
-        pdf.text(comp.name, margin + 5, y + 8);
+        pdf.setTextColor(31, 41, 55);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.text(comp.name, margin + 4, y + 7);
         
-        // Percentage
-        addText(`+${comp.change}%`, 10, 'bold', '#10B981');
-        pdf.text(`+${comp.change}%`, pageWidth - margin - 15, y + 8);
+        pdf.setTextColor(16, 185, 129);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`+${comp.change}%`, pageWidth - margin - 12, y + 7);
         
-        y += 16;
+        y += 13;
       });
-      y += 10;
+      y += 5;
       
-      // === TESTIMONIALS ===
-      if (data.testimonials.length > 0) {
-        addText('What Participants Are Saying', 16, 'bold', '#1F2937');
-        pdf.text('What Participants Are Saying', margin, y);
-        y += 10;
+      // Top Coaching Themes
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Top Coaching Themes', margin, y);
+      y += 8;
+      
+      if (data.themes.length > 0) {
+        const totalThemes = data.themes.reduce((sum, t) => sum + t.count, 0);
+        const themeColors = ['#466FF6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981'];
         
-        data.testimonials.forEach((quote, i) => {
-          // Quote box
-          drawRoundedRect(margin, y, pageWidth - 2 * margin, 30, 3, '#FEF3C7');
+        data.themes.slice(0, 5).forEach((theme, i) => {
+          const pct = Math.round((theme.count / totalThemes) * 100);
+          const barW = (pct / 100) * (pageWidth - 2 * margin - 60);
           
-          // Quote mark
-          addText('"', 24, 'bold', '#F59E0B');
-          pdf.text('"', margin + 5, y + 12);
+          drawRect(margin, y, barW, 8, themeColors[i % themeColors.length], 2);
           
-          // Quote text (truncated)
-          const truncatedQuote = quote.length > 200 ? quote.substring(0, 200) + '...' : quote;
-          addText(truncatedQuote, 9, 'normal', '#78350F');
-          const quoteLines = pdf.splitTextToSize(truncatedQuote, pageWidth - 2 * margin - 20);
-          pdf.text(quoteLines.slice(0, 3), margin + 15, y + 10);
+          pdf.setTextColor(31, 41, 55);
+          pdf.setFontSize(8);
+          pdf.setFont('helvetica', 'normal');
           
-          y += 35;
+          // Truncate long theme names
+          const displayName = theme.name.length > 30 ? theme.name.substring(0, 30) + '...' : theme.name;
+          pdf.text(displayName, margin + barW + 4, y + 6);
           
-          if (y > pageHeight - 40) {
-            pdf.addPage();
-            y = margin;
-          }
+          pdf.setTextColor(107, 114, 128);
+          pdf.text(`${pct}%`, pageWidth - margin - 10, y + 6);
+          
+          y += 11;
         });
+      } else {
+        pdf.setTextColor(156, 163, 175);
+        pdf.setFontSize(9);
+        pdf.text('No theme data available', margin, y + 5);
+        y += 12;
       }
       
-      // === FOOTER ===
-      addText('Generated by Boon Health', 8, 'normal', '#9CA3AF');
-      pdf.text('Generated by Boon Health', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      // === PAGE 2 ===
+      pdf.addPage();
+      y = margin;
+      
+      // Testimonials Header
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('What Participants Are Saying', margin, y);
+      y += 10;
+      
+      if (data.testimonials.length > 0) {
+        data.testimonials.forEach((quote) => {
+          // Calculate height needed
+          pdf.setFontSize(9);
+          const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 20);
+          const boxHeight = Math.min(quoteLines.length * 5 + 12, 50);
+          
+          drawRect(margin, y, pageWidth - 2 * margin, boxHeight, '#FEF3C7', 4);
+          
+          // Quote mark
+          pdf.setTextColor(245, 158, 11);
+          pdf.setFontSize(18);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('"', margin + 6, y + 12);
+          
+          // Quote text
+          const quoteRgb = hexToRgb('#78350F');
+          pdf.setTextColor(quoteRgb.r, quoteRgb.g, quoteRgb.b);
+          pdf.setFontSize(9);
+          pdf.setFont('helvetica', 'italic');
+          pdf.text(quoteLines.slice(0, 6), margin + 16, y + 10);
+          
+          y += boxHeight + 8;
+        });
+      } else {
+        pdf.setTextColor(156, 163, 175);
+        pdf.setFontSize(9);
+        pdf.text('No testimonials available', margin, y + 5);
+      }
+      
+      // Footer on page 2
+      pdf.setTextColor(156, 163, 175);
+      pdf.setFontSize(8);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text('Generated by Boon Health  •  Page 2 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
+      
+      // Footer on page 1
+      pdf.setPage(1);
+      pdf.setTextColor(156, 163, 175);
+      pdf.setFontSize(8);
+      pdf.text('Generated by Boon Health  •  Page 1 of 2', pageWidth / 2, pageHeight - 10, { align: 'center' });
       
       // Save
       const fileName = `${companyName?.replace(/\s+/g, '_') || 'Coaching'}_Impact_Report_${new Date().toISOString().split('T')[0]}.pdf`;
@@ -351,20 +504,17 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 
   return (
     <>
-      {/* Trigger Button */}
       <button
         onClick={handleOpen}
-        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition shadow-sm"
+        className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition shadow-sm w-full"
       >
         <FileDown className="w-4 h-4" />
         Export Report
       </button>
       
-      {/* Modal */}
       {isOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6 relative">
-            {/* Close button */}
             <button
               onClick={() => setIsOpen(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
@@ -372,7 +522,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
               <X className="w-5 h-5" />
             </button>
             
-            {/* Header */}
             <div className="mb-6">
               <h2 className="text-xl font-bold text-gray-900">Generate Report</h2>
               <p className="text-sm text-gray-500 mt-1">
@@ -380,9 +529,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
               </p>
             </div>
             
-            {/* Options */}
             <div className="space-y-4 mb-6">
-              {/* Date Range */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Time Period
@@ -399,7 +546,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
                 </select>
               </div>
               
-              {/* Program Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Program
@@ -417,7 +563,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
               </div>
             </div>
             
-            {/* Progress indicator */}
             {progress && (
               <div className="mb-4 p-3 bg-blue-50 rounded-lg flex items-center gap-3">
                 <Loader2 className="w-4 h-4 text-blue-600 animate-spin" />
@@ -425,7 +570,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
               </div>
             )}
             
-            {/* Actions */}
             <div className="flex gap-3">
               <button
                 onClick={() => setIsOpen(false)}
@@ -452,9 +596,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
               </button>
             </div>
             
-            {/* Preview note */}
             <p className="text-xs text-gray-400 text-center mt-4">
-              Report includes: Key metrics, competency growth, and testimonials
+              Includes: metrics, session trends, growth areas, themes & testimonials
             </p>
           </div>
         </div>
