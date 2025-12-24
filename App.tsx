@@ -127,7 +127,7 @@ const MainPortalLayout: React.FC = () => {
         // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
         try {
           const { data: sessionPrograms, error: sessionError } = await supabase
-            .from('sessions')
+            .from('session_tracking')
             .select('program_title');
 
           console.log('Session programs query:', { sessionPrograms, sessionError });
