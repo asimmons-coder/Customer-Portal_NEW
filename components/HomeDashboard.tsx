@@ -53,6 +53,9 @@ const HomeDashboard: React.FC = () => {
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [firstName, setFirstName] = useState('');
+  const [benchmarks, setBenchmarks] = useState<{satisfaction: number, productivity: number, balance: number, motivation: number, inclusion: number}>({
+    satisfaction: 0, productivity: 0, balance: 0, motivation: 0, inclusion: 0
+  });
 
   // UI State
   const selectedCohort = searchParams.get('cohort') || 'All Cohorts';
@@ -72,14 +75,29 @@ const HomeDashboard: React.FC = () => {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
         }
 
-        const [sessData, compData, survData, empData, baseData, configData] = await Promise.all([
+        const [sessData, compData, survData, empData, baseData, configData, benchmarkData] = await Promise.all([
           getDashboardSessions(),
           getCompetencyScores(),
           getSurveyResponses(),
           getEmployeeRoster(),
           getWelcomeSurveyData(),
-          getProgramConfig()
+          getProgramConfig(),
+          supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
+        
+        // Set benchmarks
+        const benchmarkRows = benchmarkData.data || [];
+        const getBenchmark = (metric: string) => {
+          const row = benchmarkRows.find((b: any) => b.metric_name === metric);
+          return row?.avg_value || 0;
+        };
+        setBenchmarks({
+          satisfaction: getBenchmark('baseline_satisfaction'),
+          productivity: getBenchmark('baseline_productivity'),
+          balance: getBenchmark('baseline_work_life_balance'),
+          motivation: getBenchmark('baseline_motivation') || getBenchmark('baseline_satisfaction'),
+          inclusion: getBenchmark('baseline_inclusion') || getBenchmark('baseline_satisfaction')
+        });
         
         // Helper to check if a value matches the company (case-insensitive, partial match)
         const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
@@ -704,11 +722,11 @@ const HomeDashboard: React.FC = () => {
                     <div className="pt-6 border-t border-gray-100">
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Wellbeing Baseline (1-10)</h4>
                         <div className="grid grid-cols-5 gap-2 text-center">
-                            <BaselineMetric label="Satisfac." value={stats.baseline.metrics.satisfaction} />
-                            <BaselineMetric label="Product." value={stats.baseline.metrics.productivity} />
-                            <BaselineMetric label="Balance" value={stats.baseline.metrics.balance} />
-                            <BaselineMetric label="Motivat." value={stats.baseline.metrics.motivation} />
-                            <BaselineMetric label="Inclusion" value={stats.baseline.metrics.inclusion} />
+                            <BaselineMetric label="Satisfac." value={stats.baseline.metrics.satisfaction} benchmark={benchmarks.satisfaction} />
+                            <BaselineMetric label="Product." value={stats.baseline.metrics.productivity} benchmark={benchmarks.productivity} />
+                            <BaselineMetric label="Balance" value={stats.baseline.metrics.balance} benchmark={benchmarks.balance} />
+                            <BaselineMetric label="Motivat." value={stats.baseline.metrics.motivation} benchmark={benchmarks.motivation} />
+                            <BaselineMetric label="Inclusion" value={stats.baseline.metrics.inclusion} benchmark={benchmarks.inclusion} />
                         </div>
                     </div>
                  </div>
@@ -833,11 +851,21 @@ const ThemeBar = ({ label, count, total, color }: { label: string, count: number
     );
 };
 
-const BaselineMetric = ({ label, value }: { label: string, value: number }) => (
-    <div className="bg-gray-50 border border-gray-100 rounded-lg p-2 flex flex-col items-center justify-center">
-        <span className="text-lg font-black text-gray-800">{value > 0 ? value.toFixed(1) : '-'}</span>
-        <span className="text-[10px] uppercase font-bold text-gray-400 truncate w-full">{label}</span>
-    </div>
-);
+const BaselineMetric = ({ label, value, benchmark }: { label: string, value: number, benchmark?: number }) => {
+    const diff = benchmark && value ? value - benchmark : null;
+    const showBenchmark = benchmark && benchmark > 0 && diff !== null && value > 0;
+    
+    return (
+        <div className="bg-gray-50 border border-gray-100 rounded-lg p-2 flex flex-col items-center justify-center">
+            <span className="text-lg font-black text-gray-800">{value > 0 ? value.toFixed(1) : '-'}</span>
+            <span className="text-[10px] uppercase font-bold text-gray-400 truncate w-full">{label}</span>
+            {showBenchmark && (
+                <span className={`text-[9px] font-bold mt-1 ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                    {diff >= 0 ? '↑' : '↓'} {Math.abs((diff / benchmark) * 100).toFixed(0)}% vs avg
+                </span>
+            )}
+        </div>
+    );
+};
 
 export default HomeDashboard;
