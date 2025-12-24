@@ -24,6 +24,9 @@ const BaselineDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCohort, setSelectedCohort] = useState('All Cohorts');
+  const [boonAverages, setBoonAverages] = useState<{satisfaction: number, productivity: number, work_life_balance: number}>({
+    satisfaction: 0, productivity: 0, work_life_balance: 0
+  });
   
   // Mobile accordion state
   const [demographicsOpen, setDemographicsOpen] = useState(false);
@@ -54,10 +57,24 @@ const BaselineDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         const companyBase = company.split(' - ')[0].toLowerCase();
         
-        const [result, configData] = await Promise.all([
+        const [result, configData, benchmarkData] = await Promise.all([
           getWelcomeSurveyData(),
-          getProgramConfig()
+          getProgramConfig(),
+          supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
+        
+        // Get Boon benchmarks from table (use GROW benchmarks for baseline comparison)
+        const benchmarks = benchmarkData.data || [];
+        const getBenchmark = (metric: string) => {
+          const row = benchmarks.find((b: any) => b.metric_name === metric);
+          return row ? Number(row.avg_value) : 0;
+        };
+        
+        setBoonAverages({
+          satisfaction: getBenchmark('baseline_satisfaction'),
+          productivity: getBenchmark('baseline_productivity'),
+          work_life_balance: getBenchmark('baseline_work_life_balance')
+        });
         
         // Filter by company
         const filteredResult = result.filter(b => {
@@ -368,6 +385,8 @@ const BaselineDashboard: React.FC = () => {
                     color="bg-boon-green/10"
                     textColor="text-boon-green"
                     subtext="/ 10"
+                    benchmark={boonAverages.satisfaction}
+                    currentValue={stats.wellbeing.find(w => w.key === 'satisfaction')?.value || 0}
                 />
                 )}
                 {stats.wellbeing.find(w => w.key === 'productivity')?.hasData && (
@@ -378,6 +397,20 @@ const BaselineDashboard: React.FC = () => {
                     color="bg-boon-coral/10"
                     textColor="text-boon-coral"
                     subtext="/ 10"
+                    benchmark={boonAverages.productivity}
+                    currentValue={stats.wellbeing.find(w => w.key === 'productivity')?.value || 0}
+                />
+                )}
+                {stats.wellbeing.find(w => w.key === 'work_life_balance')?.hasData && (
+                <KPICard 
+                    title="Work-Life Balance" 
+                    value={stats.wellbeing.find(w => w.key === 'work_life_balance')?.value.toFixed(1) || '-'} 
+                    icon={<Smile className="w-5 h-5 text-boon-yellow" />} 
+                    color="bg-boon-yellow/10"
+                    textColor="text-boon-dark"
+                    subtext="/ 10"
+                    benchmark={boonAverages.work_life_balance}
+                    currentValue={stats.wellbeing.find(w => w.key === 'work_life_balance')?.value || 0}
                 />
                 )}
             </div>
@@ -418,42 +451,6 @@ const BaselineDashboard: React.FC = () => {
                              <span>3</span>
                              <span>4</span>
                              <span>5</span>
-                        </div>
-                    </div>
-                    )}
-
-                    {/* Wellbeing Chart (Now Second) */}
-                    {stats.wellbeing.some(item => item.hasData) && (
-                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
-                        <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Smile className="w-4 h-4 text-boon-green" /> Wellbeing Baseline (1-10)
-                        </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            {stats.wellbeing.filter(item => item.hasData).map((item, index, arr) => (
-                                <div 
-                                    key={item.key} 
-                                    className={`flex flex-col items-center p-4 bg-gray-50 rounded-2xl ${
-                                        index === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 md:col-span-1 justify-self-center w-1/2 md:w-auto mx-auto md:mx-0' : ''
-                                    }`}
-                                >
-                                    <div className="relative w-20 h-20 md:w-24 md:h-24 flex items-center justify-center mb-3">
-                                        <svg className="w-full h-full transform -rotate-90">
-                                            <circle cx="50%" cy="50%" r="40%" stroke="#E5E7EB" strokeWidth="8" fill="none" />
-                                            <circle 
-                                                cx="50%" cy="50%" r="40%" 
-                                                stroke={getWellbeingColor(item.value)} 
-                                                strokeWidth="8" 
-                                                fill="none" 
-                                                strokeDasharray={251} 
-                                                strokeDashoffset={251 - (251 * item.value) / 10} 
-                                                strokeLinecap="round"
-                                            />
-                                        </svg>
-                                        <span className="absolute text-xl md:text-2xl font-black text-gray-700">{item.value.toFixed(1)}</span>
-                                    </div>
-                                    <span className="text-[10px] md:text-xs font-bold text-gray-500 uppercase text-center">{item.label}</span>
-                                </div>
-                            ))}
                         </div>
                     </div>
                     )}
@@ -535,20 +532,30 @@ const BaselineDashboard: React.FC = () => {
 
 // Sub-components
 
-const KPICard = ({ title, value, icon, color, textColor, subtext, isText }: any) => (
-    <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
-        <div className={`p-3 rounded-xl ${color}`}>
-            {icon}
-        </div>
-        <div className="overflow-hidden">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-wide truncate">{title}</p>
-            <div className={`font-black ${textColor} ${isText ? 'text-lg truncate' : 'text-3xl'}`}>
-                {value} 
-                {subtext && <span className="text-sm text-gray-300 font-medium ml-1">{subtext}</span>}
+const KPICard = ({ title, value, icon, color, textColor, subtext, isText, benchmark, currentValue }: any) => {
+    const diff = benchmark && currentValue ? currentValue - benchmark : null;
+    const showBenchmark = benchmark && benchmark > 0 && diff !== null;
+    
+    return (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4">
+            <div className={`p-3 rounded-xl ${color}`}>
+                {icon}
+            </div>
+            <div className="overflow-hidden flex-1">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide truncate">{title}</p>
+                <div className={`font-black ${textColor} ${isText ? 'text-lg truncate' : 'text-3xl'}`}>
+                    {value} 
+                    {subtext && <span className="text-sm text-gray-300 font-medium ml-1">{subtext}</span>}
+                </div>
+                {showBenchmark && (
+                    <p className={`text-xs font-semibold mt-1 ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                        {diff >= 0 ? '↑' : '↓'} {Math.abs(diff).toFixed(1)} vs Boon avg ({benchmark.toFixed(1)})
+                    </p>
+                )}
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 const DemographicCard = ({ title, data }: { title: string, data: { label: string, count: number, pct: number }[] }) => {
     // Hide card if only "Unknown" at 100%
