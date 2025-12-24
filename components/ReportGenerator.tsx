@@ -91,56 +91,41 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const sessions = allSessions.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
     
     const completedSessions = sessions.filter(s => (s as any).status === 'Completed');
-    const uniqueEmployees = new Set(sessions.map(s => (s as any).employee_email?.toLowerCase())).size;
+    const uniqueEmployees = new Set(sessions.map(s => (s as any).employee_name?.toLowerCase()).filter(Boolean)).size;
     
     // Fetch competency scores
     setProgress('Analyzing competency growth...');
     const allScores = await getCompetencyScores();
     const scores = allScores.filter(c => matchesCompany((c as any).account, (c as any).program_title));
     
-    // Calculate competency changes
-    const competencyKeys = [
-      'comp_conflict_resolution',
-      'comp_time_management_and_productivity', 
-      'comp_collaboration',
-      'comp_strategic_thinking',
-      'comp_influencing_others',
-      'comp_emotional_intelligence',
-      'comp_change_management'
-    ];
+    // Group scores by competency and calculate averages
+    const competencyMap = new Map<string, { preSum: number; postSum: number; count: number }>();
     
-    const competencyNames: Record<string, string> = {
-      'comp_conflict_resolution': 'Conflict Resolution',
-      'comp_time_management_and_productivity': 'Time Management',
-      'comp_collaboration': 'Collaboration',
-      'comp_strategic_thinking': 'Strategic Thinking',
-      'comp_influencing_others': 'Influencing Others',
-      'comp_emotional_intelligence': 'Emotional Intelligence',
-      'comp_change_management': 'Change Management'
-    };
+    scores.forEach(s => {
+      const comp = (s as any).competency;
+      const pre = Number((s as any).pre);
+      const post = Number((s as any).post);
+      
+      if (!comp || isNaN(pre) || isNaN(post) || pre <= 0 || post <= 0) return;
+      
+      if (!competencyMap.has(comp)) {
+        competencyMap.set(comp, { preSum: 0, postSum: 0, count: 0 });
+      }
+      const entry = competencyMap.get(comp)!;
+      entry.preSum += pre;
+      entry.postSum += post;
+      entry.count += 1;
+    });
     
-    const competencyStats = competencyKeys.map(key => {
-      const preKey = `${key}_pre`;
-      const postKey = `${key}_post`;
-      
-      const validScores = scores.filter(s => 
-        (s as any)[preKey] != null && (s as any)[postKey] != null && 
-        (s as any)[preKey] > 0 && (s as any)[postKey] > 0
-      );
-      
-      if (validScores.length === 0) return null;
-      
-      const avgPre = validScores.reduce((sum, s) => sum + Number((s as any)[preKey]), 0) / validScores.length;
-      const avgPost = validScores.reduce((sum, s) => sum + Number((s as any)[postKey]), 0) / validScores.length;
-      const change = ((avgPost - avgPre) / avgPre) * 100;
-      
-      return {
-        name: competencyNames[key] || key,
-        change: Math.round(change)
-      };
-    }).filter(Boolean) as { name: string; change: number }[];
-    
-    competencyStats.sort((a, b) => b.change - a.change);
+    const competencyStats = Array.from(competencyMap.entries())
+      .map(([name, data]) => {
+        const avgPre = data.preSum / data.count;
+        const avgPost = data.postSum / data.count;
+        const change = ((avgPost - avgPre) / avgPre) * 100;
+        return { name, change: Math.round(change) };
+      })
+      .filter(c => !isNaN(c.change))
+      .sort((a, b) => b.change - a.change);
     
     const overallGrowth = competencyStats.length > 0 
       ? competencyStats.reduce((sum, c) => sum + c.change, 0) / competencyStats.length 
@@ -151,8 +136,8 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const allSurveys = await getSurveyResponses();
     const surveys = allSurveys.filter(s => matchesCompany((s as any).account, (s as any).program_title));
     
-    const npsScores = surveys.map(s => (s as any).nps_score).filter(n => n != null);
-    const csatScores = surveys.map(s => (s as any).coach_rating).filter(n => n != null);
+    const npsScores = surveys.map(s => (s as any).nps).filter(n => n != null);
+    const csatScores = surveys.map(s => (s as any).coach_satisfaction).filter(n => n != null);
     
     const promoters = npsScores.filter(n => n >= 9).length;
     const detractors = npsScores.filter(n => n <= 6).length;
