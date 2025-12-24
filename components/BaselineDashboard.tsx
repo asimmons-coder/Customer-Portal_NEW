@@ -549,7 +549,7 @@ const KPICard = ({ title, value, icon, color, textColor, subtext, isText, benchm
                 </div>
                 {showBenchmark && (
                     <p className={`text-xs font-semibold mt-1 ${diff >= 0 ? 'text-green-600' : 'text-red-500'}`}>
-                        {diff >= 0 ? '↑' : '↓'} {Math.abs(diff).toFixed(1)} vs Boon avg ({benchmark.toFixed(1)})
+                        {diff >= 0 ? '↑' : '↓'} {Math.abs((diff / benchmark) * 100).toFixed(0)}% vs Boon avg
                     </p>
                 )}
             </div>
@@ -564,6 +564,15 @@ const DemographicCard = ({ title, data }: { title: string, data: { label: string
     
     if (!hasRealData && data.length > 0) return null;
     
+    // Format labels for Previous Coaching
+    const formatLabel = (label: string, cardTitle: string) => {
+        if (cardTitle === 'Previous Coaching') {
+            if (label === '0') return 'No prior coaching';
+            if (label === '1') return 'Has prior coaching';
+        }
+        return label;
+    };
+    
     return (
         <div className="bg-white xl:p-6 rounded-2xl xl:shadow-sm xl:border border-gray-100">
             <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -573,8 +582,10 @@ const DemographicCard = ({ title, data }: { title: string, data: { label: string
                 {data.slice(0, 5).map((item) => (
                     <div key={item.label}>
                         <div className="flex justify-between text-xs font-bold mb-1">
-                            <span className="text-gray-600 truncate max-w-[70%]">{item.label}</span>
-                            <span className="text-gray-400">{item.count} ({item.pct.toFixed(0)}%)</span>
+                            <span className="text-gray-600 truncate max-w-[70%]">{formatLabel(item.label, title)}</span>
+                            <span className="text-gray-400">
+                                {title === 'Previous Coaching' ? `${item.pct.toFixed(0)}%` : `${item.count} (${item.pct.toFixed(0)}%)`}
+                            </span>
                         </div>
                         <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
                             <div 

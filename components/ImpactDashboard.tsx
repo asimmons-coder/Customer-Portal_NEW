@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getCompetencyScores, getWelcomeSurveyData } from '../lib/dataFetcher';
-import { CompetencyScore, WelcomeSurveyEntry } from '../types';
+import { getCompetencyScores, getWelcomeSurveyData, getSurveyResponses } from '../lib/dataFetcher';
+import { CompetencyScore, WelcomeSurveyEntry, SurveyResponse } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
-import { BarChart, AlertCircle, Clock, Info } from 'lucide-react';
+import { BarChart, AlertCircle, Clock, Info, MessageSquareQuote, ChevronDown, ChevronUp } from 'lucide-react';
 
 // --- Program Display Name Mapping ---
 const programDisplayNames: Record<string, string> = {
@@ -65,9 +65,11 @@ const getInterpretation = (topCompetencies: string[]): string => {
 const ImpactDashboard: React.FC = () => {
   const [scores, setScores] = useState<CompetencyScore[]>([]);
   const [baselineData, setBaselineData] = useState<WelcomeSurveyEntry[]>([]);
+  const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedProgram, setSelectedProgram] = useState('All Programs');
+  const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -79,9 +81,10 @@ const ImpactDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         const companyBase = company.split(' - ')[0].toLowerCase();
         
-        const [compData, baseData] = await Promise.all([
+        const [compData, baseData, surveyData] = await Promise.all([
           getCompetencyScores(),
-          getWelcomeSurveyData()
+          getWelcomeSurveyData(),
+          getSurveyResponses()
         ]);
         
         // Filter by company
@@ -91,11 +94,19 @@ const ImpactDashboard: React.FC = () => {
           return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
         };
         
-        const filteredScores = compData.filter(c => matchesCompany((c as any).account));
-        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account));
+        // For TWC, filter by program_title prefix
+        const matchesTWC = (programTitle: string | undefined | null): boolean => {
+          if (!programTitle) return false;
+          return companyBase.includes('wonderful') && programTitle.toLowerCase().startsWith('twc');
+        };
+        
+        const filteredScores = compData.filter(c => matchesCompany((c as any).account) || matchesTWC((c as any).program_title));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account) || matchesTWC((b as any).program_title));
+        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account) || matchesTWC((s as any).program_title));
         
         setScores(filteredScores);
         setBaselineData(filteredBaseline);
+        setSurveys(filteredSurveys);
       } catch (err: any) {
         setError(err.message || 'Failed to load competency data');
       } finally {
@@ -467,7 +478,152 @@ const ImpactDashboard: React.FC = () => {
             </div>
             </div>
         </div>
+        
+        {/* Testimonials Section */}
+        <TestimonialsSection 
+          surveys={surveys} 
+          selectedProgram={selectedProgram}
+          expandedTheme={expandedTheme}
+          setExpandedTheme={setExpandedTheme}
+        />
       )}
+    </div>
+  );
+};
+
+// Testimonials categorized by theme
+const TestimonialsSection: React.FC<{
+  surveys: SurveyResponse[];
+  selectedProgram: string;
+  expandedTheme: string | null;
+  setExpandedTheme: (theme: string | null) => void;
+}> = ({ surveys, selectedProgram, expandedTheme, setExpandedTheme }) => {
+  
+  // Theme categories with keywords for matching
+  const themeCategories = [
+    { 
+      name: 'Leadership & Management', 
+      keywords: ['lead', 'manage', 'team', 'delegate', 'direct report', 'supervise', 'mentor'],
+      icon: '👔'
+    },
+    { 
+      name: 'Communication & Influence', 
+      keywords: ['communicat', 'listen', 'speak', 'present', 'influence', 'persuad', 'conversation', 'feedback'],
+      icon: '💬'
+    },
+    { 
+      name: 'Personal Development', 
+      keywords: ['confidence', 'growth', 'skill', 'learn', 'improve', 'develop', 'strength', 'awareness'],
+      icon: '🌱'
+    },
+    { 
+      name: 'Strategic Thinking', 
+      keywords: ['strategic', 'priorit', 'decision', 'plan', 'goal', 'vision', 'problem-solv'],
+      icon: '🎯'
+    },
+    { 
+      name: 'Work-Life Balance', 
+      keywords: ['balance', 'stress', 'wellbeing', 'wellness', 'boundaries', 'self-care', 'burnout'],
+      icon: '⚖️'
+    }
+  ];
+  
+  // Filter surveys by program and extract feedback
+  const normalize = (str: string) => (str || '').toLowerCase().trim();
+  const selNorm = normalize(selectedProgram);
+  
+  const filteredSurveys = selectedProgram === 'All Programs' 
+    ? surveys 
+    : surveys.filter(s => {
+        const pt = normalize((s as any).program_title || '');
+        return pt === selNorm;
+      });
+  
+  // Get all feedback text
+  const allFeedback = filteredSurveys
+    .flatMap(s => [
+      (s as any).feedback_learned,
+      (s as any).feedback_insight
+    ])
+    .filter(f => f && typeof f === 'string' && f.length > 30);
+  
+  if (allFeedback.length === 0) return null;
+  
+  // Categorize feedback by theme
+  const categorizedFeedback = themeCategories.map(theme => {
+    const quotes = allFeedback.filter(feedback => {
+      const lower = feedback.toLowerCase();
+      return theme.keywords.some(kw => lower.includes(kw));
+    });
+    return { ...theme, quotes };
+  }).filter(theme => theme.quotes.length > 0);
+  
+  // Add "Other" category for uncategorized feedback
+  const categorizedQuotes = new Set(categorizedFeedback.flatMap(t => t.quotes));
+  const otherQuotes = allFeedback.filter(f => !categorizedQuotes.has(f));
+  if (otherQuotes.length > 0) {
+    categorizedFeedback.push({
+      name: 'Other Insights',
+      keywords: [],
+      icon: '💡',
+      quotes: otherQuotes
+    });
+  }
+  
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
+      <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+        <MessageSquareQuote className="w-4 h-4 text-boon-purple" />
+        Participant Testimonials
+      </h3>
+      <p className="text-gray-500 text-sm mb-6">
+        What participants learned and valued most from their coaching experience.
+      </p>
+      
+      <div className="space-y-4">
+        {categorizedFeedback.map((theme) => (
+          <div key={theme.name} className="border border-gray-100 rounded-xl overflow-hidden">
+            <button
+              onClick={() => setExpandedTheme(expandedTheme === theme.name ? null : theme.name)}
+              className="w-full px-5 py-4 flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{theme.icon}</span>
+                <span className="font-bold text-gray-800">{theme.name}</span>
+                <span className="text-xs bg-boon-blue/10 text-boon-blue px-2 py-1 rounded-full font-semibold">
+                  {theme.quotes.length} {theme.quotes.length === 1 ? 'quote' : 'quotes'}
+                </span>
+              </div>
+              {expandedTheme === theme.name ? (
+                <ChevronUp className="w-5 h-5 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-5 h-5 text-gray-400" />
+              )}
+            </button>
+            
+            {expandedTheme === theme.name && (
+              <div className="p-5 space-y-4 bg-white">
+                {theme.quotes.slice(0, 10).map((quote, idx) => (
+                  <div key={idx} className="pl-4 border-l-3 border-boon-blue/30">
+                    <p className="text-gray-700 text-sm italic leading-relaxed">
+                      "{quote}"
+                    </p>
+                  </div>
+                ))}
+                {theme.quotes.length > 10 && (
+                  <p className="text-xs text-gray-400 italic">
+                    + {theme.quotes.length - 10} more testimonials
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      
+      <p className="text-xs text-gray-400 mt-6 italic">
+        Based on {allFeedback.length} responses from end-of-program surveys
+      </p>
     </div>
   );
 };
