@@ -124,22 +124,34 @@ const MainPortalLayout: React.FC = () => {
         }
         setProgramTypeLoading(false);
 
-        // Fetch program titles for sidebar (sorted by start date, most recent first)
-        const { data, error } = await supabase
-          .from('program_config')
-          .select('program_title, program_start_date')
-          .ilike('account_name', `%${company.split(' - ')[0]}%`)
-          .order('program_start_date', { ascending: false, nullsFirst: false });
+        // Fetch program titles for sidebar from sessions data (more reliable than program_config)
+        const { data: sessionPrograms, error: sessionError } = await supabase
+          .from('sessions')
+          .select('program_title')
+          .ilike('account_name', `%${company.split(' - ')[0]}%`);
 
-        if (error) throw error;
-
-        if (data) {
+        if (!sessionError && sessionPrograms) {
           const uniquePrograms = [...new Set(
-            data.map(d => d.program_title)
+            sessionPrograms.map(s => s.program_title)
               .filter(p => p && p.trim().length > 0)
           )] as string[];
-          // Already sorted by start date from query
-          setPrograms(uniquePrograms);
+          // Sort alphabetically for consistent ordering
+          setPrograms(uniquePrograms.sort());
+        } else {
+          // Fallback to program_config if sessions query fails
+          const { data, error } = await supabase
+            .from('program_config')
+            .select('program_title, program_start_date')
+            .ilike('account_name', `%${company.split(' - ')[0]}%`)
+            .order('program_start_date', { ascending: false, nullsFirst: false });
+
+          if (!error && data) {
+            const uniquePrograms = [...new Set(
+              data.map(d => d.program_title)
+                .filter(p => p && p.trim().length > 0)
+            )] as string[];
+            setPrograms(uniquePrograms);
+          }
         }
       } catch (err) {
         console.error('Error fetching metadata:', err);
