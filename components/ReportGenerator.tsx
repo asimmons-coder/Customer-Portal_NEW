@@ -372,94 +372,96 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         }
       };
       
-      // Helper to load image as base64
-      const loadImage = async (url: string): Promise<string | null> => {
-        try {
-          const response = await fetch(url);
-          const blob = await response.blob();
-          return new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.onerror = () => resolve(null);
-            reader.readAsDataURL(blob);
-          });
-        } catch {
-          return null;
-        }
-      };
-      
       // === PAGE 1 ===
       
-      // Header
-      drawRect(0, 0, pageWidth, 40, '#466FF6');
+      // Header - compact
+      drawRect(0, 0, pageWidth, 32, '#466FF6');
       
-      // Add Boon logo (left side)
+      // Load and add Boon logo (left side)
+      const loadImageAsBase64 = (url: string): Promise<string | null> => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+          };
+          img.onerror = () => resolve(null);
+          img.src = url;
+        });
+      };
+      
+      // Try to load Boon logo
       try {
-        const boonLogoUrl = 'https://storage.googleapis.com/boon-public-assets/Wordmark_White.png';
-        const boonLogoData = await loadImage(boonLogoUrl);
+        const boonLogoData = await loadImageAsBase64('https://storage.googleapis.com/boon-public-assets/Wordmark_White.png');
         if (boonLogoData) {
-          pdf.addImage(boonLogoData, 'PNG', margin, 12, 35, 16);
+          pdf.addImage(boonLogoData, 'PNG', margin, 8, 28, 14);
+        } else {
+          // Fallback to text
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(14);
+          pdf.setFont('helvetica', 'bold');
+          pdf.text('boon', margin, 20);
         }
-      } catch (e) {
-        // If logo fails, just show text
+      } catch {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(14);
         pdf.setFont('helvetica', 'bold');
-        pdf.text('BOON', margin, 24);
+        pdf.text('boon', margin, 20);
       }
       
-      // Add client logo (right side) if available
+      // Try to load client logo (right side)
       if (clientLogo) {
         try {
-          const clientLogoData = await loadImage(clientLogo);
+          const clientLogoData = await loadImageAsBase64(clientLogo);
           if (clientLogoData) {
-            pdf.addImage(clientLogoData, 'PNG', pageWidth - margin - 30, 10, 30, 20);
+            pdf.addImage(clientLogoData, 'PNG', pageWidth - margin - 25, 6, 25, 20);
           }
-        } catch (e) {
-          // Skip if client logo fails
+        } catch {
+          // Skip if fails
         }
       }
       
-      // Title and date (centered)
+      // Title (centered)
       pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(18);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Coaching Impact Report', pageWidth / 2, 18, { align: 'center' });
-      
-      pdf.setFontSize(10);
-      pdf.setFont('helvetica', 'normal');
-      const subtitle = companyName || 'Executive Summary';
-      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      pdf.text(`${subtitle}  •  ${today}`, pageWidth / 2, 30, { align: 'center' });
-      
-      y = 50;
-      
-      // Programs section (only show if not single program selected)
-      if (data.programsForPeriod.length > 0 && data.programPeriodLabel) {
-        pdf.setTextColor(31, 41, 55);
-        pdf.setFontSize(9);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(`${data.programPeriodLabel}:`, margin, y);
-        y += 5;
-        
-        pdf.setFont('helvetica', 'normal');
-        pdf.setTextColor(70, 111, 246);
-        // Show ALL programs, wrapped across multiple lines
-        const programNames = data.programsForPeriod.map(p => p.name).join('  •  ');
-        const programLines = pdf.splitTextToSize(programNames, pageWidth - 2 * margin);
-        pdf.text(programLines, margin, y);
-        y += (programLines.length * 4) + 6;
-      }
-      
-      // Key Metrics
-      pdf.setTextColor(31, 41, 55);
       pdf.setFontSize(14);
       pdf.setFont('helvetica', 'bold');
-      pdf.text('Key Metrics', margin, y);
-      y += 8;
+      pdf.text('Coaching Impact Report', pageWidth / 2, 13, { align: 'center' });
       
-      const cardWidth = (pageWidth - 2 * margin - 15) / 4;
-      const cardHeight = 28;
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+      pdf.text(`${companyName || ''}  •  ${today}`, pageWidth / 2, 23, { align: 'center' });
+      
+      y = 40;
+      
+      // Programs section - compact
+      if (data.programsForPeriod.length > 0 && data.programPeriodLabel) {
+        pdf.setTextColor(107, 114, 128);
+        pdf.setFontSize(8);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`${data.programPeriodLabel}:`, margin, y);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(70, 111, 246);
+        const programNames = data.programsForPeriod.map(p => p.name).join('  •  ');
+        const programLines = pdf.splitTextToSize(programNames, pageWidth - 2 * margin);
+        pdf.text(programLines, margin, y + 4);
+        y += (programLines.length * 3.5) + 8;
+      }
+      
+      // Key Metrics - smaller cards
+      pdf.setTextColor(31, 41, 55);
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Key Metrics', margin, y);
+      y += 6;
+      
+      const cardWidth = (pageWidth - 2 * margin - 12) / 4;
+      const cardHeight = 22;
       const metrics = [
         { label: 'Sessions', value: data.sessions.completed.toString(), color: '#466FF6' },
         { label: 'Participants', value: data.sessions.employees.toString(), color: '#10B981' },
@@ -468,188 +470,171 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       ];
       
       metrics.forEach((metric, i) => {
-        const x = margin + i * (cardWidth + 5);
-        drawRect(x, y, cardWidth, cardHeight, metric.color, 4);
+        const x = margin + i * (cardWidth + 4);
+        drawRect(x, y, cardWidth, cardHeight, metric.color, 3);
         
         pdf.setTextColor(255, 255, 255);
-        pdf.setFontSize(16);
+        pdf.setFontSize(14);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(metric.value, x + cardWidth / 2, y + 12, { align: 'center' });
+        pdf.text(metric.value, x + cardWidth / 2, y + 10, { align: 'center' });
         
-        pdf.setFontSize(8);
+        pdf.setFontSize(7);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(metric.label, x + cardWidth / 2, y + 20, { align: 'center' });
+        pdf.text(metric.label, x + cardWidth / 2, y + 17, { align: 'center' });
       });
-      y += cardHeight + 12;
+      y += cardHeight + 8;
       
-      // Session Trend Chart
+      // Session Trend Chart - smaller
       pdf.setTextColor(31, 41, 55);
-      pdf.setFontSize(14);
+      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Session Trend (Last 6 Months)', margin, y);
-      y += 8;
+      y += 5;
       
-      const chartHeight = 35;
+      const chartHeight = 28;
       const chartWidth = pageWidth - 2 * margin;
       const barSpacing = chartWidth / 6;
-      const singleBarWidth = 18;
+      const singleBarWidth = 16;
       const maxCount = Math.max(...data.sessions.monthlyTrend.map(m => m.count), 1);
       
       drawRect(margin, y, chartWidth, chartHeight, '#F9FAFB', 3);
       
       data.sessions.monthlyTrend.forEach((m, i) => {
-        const barHeight = (m.count / maxCount) * (chartHeight - 18);
+        const barHeight = (m.count / maxCount) * (chartHeight - 14);
         const centerX = margin + (i * barSpacing) + (barSpacing / 2);
         const barX = centerX - (singleBarWidth / 2);
-        const barY = y + chartHeight - 10 - barHeight;
+        const barY = y + chartHeight - 8 - barHeight;
         
-        // Bar
         if (barHeight > 0) {
           drawRect(barX, barY, singleBarWidth, barHeight, '#466FF6', 2);
         }
         
-        // Count label (centered above bar)
         if (m.count > 0) {
           pdf.setTextColor(70, 111, 246);
-          pdf.setFontSize(8);
+          pdf.setFontSize(7);
           pdf.setFont('helvetica', 'bold');
-          pdf.text(m.count.toString(), centerX, barY - 2, { align: 'center' });
+          pdf.text(m.count.toString(), centerX, barY - 1, { align: 'center' });
         }
         
-        // Month label (centered below)
         pdf.setTextColor(107, 114, 128);
-        pdf.setFontSize(7);
+        pdf.setFontSize(6);
         pdf.setFont('helvetica', 'normal');
         pdf.text(m.month, centerX, y + chartHeight - 2, { align: 'center' });
       });
-      y += chartHeight + 12;
+      y += chartHeight + 8;
       
-      // Top Areas of Growth
+      // Top Areas of Growth - compact
       pdf.setTextColor(31, 41, 55);
-      pdf.setFontSize(14);
+      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Top Areas of Growth', margin, y);
-      y += 8;
+      y += 6;
       
       data.impact.topCompetencies.forEach((comp) => {
-        drawRect(margin, y, pageWidth - 2 * margin, 10, '#F3F4F6', 2);
-        
-        const progressWidth = Math.min((comp.change / 15) * (pageWidth - 2 * margin - 50), pageWidth - 2 * margin - 50);
-        drawRect(margin, y, progressWidth, 10, '#10B981', 2);
+        drawRect(margin, y, pageWidth - 2 * margin, 8, '#F3F4F6', 2);
+        const progressWidth = Math.min((comp.change / 15) * (pageWidth - 2 * margin - 40), pageWidth - 2 * margin - 40);
+        drawRect(margin, y, progressWidth, 8, '#10B981', 2);
         
         pdf.setTextColor(31, 41, 55);
-        pdf.setFontSize(9);
+        pdf.setFontSize(8);
         pdf.setFont('helvetica', 'normal');
-        pdf.text(comp.name, margin + 4, y + 7);
+        pdf.text(comp.name, margin + 3, y + 6);
         
         pdf.setTextColor(16, 185, 129);
         pdf.setFont('helvetica', 'bold');
-        pdf.text(`+${comp.change}%`, pageWidth - margin - 12, y + 7);
+        pdf.text(`+${comp.change}%`, pageWidth - margin - 10, y + 6);
         
-        y += 13;
+        y += 10;
       });
-      y += 5;
+      y += 6;
       
-      // === PAGE 2 ===
-      pdf.addPage();
-      y = margin;
-      
-      // Top Coaching Themes - Horizontal bar chart style
+      // Top Coaching Themes - on page 1
       pdf.setTextColor(31, 41, 55);
-      pdf.setFontSize(14);
+      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
       pdf.text('Top Coaching Themes', margin, y);
-      y += 12;
+      y += 6;
       
       if (data.themes.length > 0) {
         const totalThemes = data.themes.reduce((sum, t) => sum + t.count, 0);
         const themeColors = ['#466FF6', '#8B5CF6', '#EC4899', '#F59E0B', '#10B981'];
-        const barMaxWidth = pageWidth - 2 * margin - 50; // Leave space for percentage
+        const barMaxWidth = pageWidth - 2 * margin - 45;
         
         data.themes.slice(0, 5).forEach((theme, i) => {
           const pct = Math.round((theme.count / totalThemes) * 100);
           const barW = (pct / 100) * barMaxWidth;
           
-          // Theme name first
+          // Theme name
           pdf.setTextColor(31, 41, 55);
-          pdf.setFontSize(9);
+          pdf.setFontSize(8);
           pdf.setFont('helvetica', 'normal');
-          const displayName = theme.name.length > 45 ? theme.name.substring(0, 45) + '...' : theme.name;
+          const displayName = theme.name.length > 40 ? theme.name.substring(0, 40) + '...' : theme.name;
           pdf.text(displayName, margin, y);
-          y += 5;
+          y += 4;
           
-          // Draw background bar (gray)
-          drawRect(margin, y, barMaxWidth, 6, '#E5E7EB', 2);
-          
-          // Draw filled bar (colored)
+          // Bars
+          drawRect(margin, y, barMaxWidth, 5, '#E5E7EB', 2);
           if (barW > 0) {
-            drawRect(margin, y, barW, 6, themeColors[i % themeColors.length], 2);
+            drawRect(margin, y, barW, 5, themeColors[i % themeColors.length], 2);
           }
           
-          // Percentage at end
-          pdf.setTextColor(themeColors[i % themeColors.length].replace('#', ''));
+          // Percentage
           const rgb = hexToRgb(themeColors[i % themeColors.length]);
           pdf.setTextColor(rgb.r, rgb.g, rgb.b);
           pdf.setFont('helvetica', 'bold');
-          pdf.setFontSize(9);
-          pdf.text(`${pct}%`, pageWidth - margin, y + 5, { align: 'right' });
+          pdf.setFontSize(8);
+          pdf.text(`${pct}%`, pageWidth - margin, y + 4, { align: 'right' });
           
-          y += 12;
+          y += 9;
         });
-      } else {
-        pdf.setTextColor(156, 163, 175);
-        pdf.setFontSize(9);
-        pdf.text('No theme data available', margin, y + 5);
-        y += 12;
       }
       
-      y += 8;
+      // === PAGE 2 - Testimonials only ===
+      pdf.addPage();
+      y = margin;
       
       // Testimonials Header
       pdf.setTextColor(31, 41, 55);
-      pdf.setFontSize(14);
+      pdf.setFontSize(11);
       pdf.setFont('helvetica', 'bold');
       pdf.text('What Participants Are Saying', margin, y);
-      y += 10;
+      y += 8;
       
-      const footerSpace = 25; // Reserve space for footer
+      const footerSpace = 20;
       
       if (data.testimonials.length > 0) {
-        data.testimonials.forEach((quote, index) => {
-          // Calculate height needed
+        data.testimonials.forEach((quote) => {
           pdf.setFontSize(8);
-          const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 25);
-          const boxHeight = Math.min(quoteLines.length * 4 + 12, 42);
+          const quoteLines = pdf.splitTextToSize(quote, pageWidth - 2 * margin - 20);
+          const boxHeight = Math.min(quoteLines.length * 3.5 + 10, 38);
           
-          // Check if we need a new page
+          // Check if we need a new page (shouldn't happen with 5 quotes on full page)
           if (y + boxHeight > pageHeight - footerSpace) {
             pdf.addPage();
             y = margin;
-            
-            // Continue header on new page
             pdf.setTextColor(31, 41, 55);
-            pdf.setFontSize(12);
+            pdf.setFontSize(11);
             pdf.setFont('helvetica', 'bold');
             pdf.text('What Participants Are Saying (continued)', margin, y);
-            y += 12;
+            y += 8;
           }
           
-          drawRect(margin, y, pageWidth - 2 * margin, boxHeight, '#FEF3C7', 4);
+          drawRect(margin, y, pageWidth - 2 * margin, boxHeight, '#FEF3C7', 3);
           
           // Quote mark
           pdf.setTextColor(245, 158, 11);
-          pdf.setFontSize(14);
+          pdf.setFontSize(12);
           pdf.setFont('helvetica', 'bold');
-          pdf.text('"', margin + 5, y + 9);
+          pdf.text('"', margin + 4, y + 8);
           
           // Quote text
           const quoteRgb = hexToRgb('#78350F');
           pdf.setTextColor(quoteRgb.r, quoteRgb.g, quoteRgb.b);
-          pdf.setFontSize(8);
+          pdf.setFontSize(7);
           pdf.setFont('helvetica', 'italic');
-          pdf.text(quoteLines.slice(0, 7), margin + 14, y + 7);
+          pdf.text(quoteLines.slice(0, 8), margin + 12, y + 6);
           
-          y += boxHeight + 5;
+          y += boxHeight + 4;
         });
       } else {
         pdf.setTextColor(156, 163, 175);
@@ -657,7 +642,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         pdf.text('No testimonials available', margin, y + 5);
       }
       
-      // Add footer to all pages at the end
+      // Add footer to all pages
       const totalPages = pdf.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         pdf.setPage(i);
