@@ -14,7 +14,8 @@ import {
   BarChart,
   Layout,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Lightbulb
 } from 'lucide-react';
 
 const BaselineDashboard: React.FC = () => {
@@ -199,10 +200,48 @@ const BaselineDashboard: React.FC = () => {
           tenure: getDistribution('tenure'),
           experience: getDistribution('years_experience'),
           coaching: getDistribution('previous_coaching')
-        }
+        },
+        coachingGoals: analyzeCoachingGoals(filtered)
       }
     };
   }, [data, selectedCohort, programConfig]);
+
+  // Analyze coaching goals for themes
+  const analyzeCoachingGoals = (entries: WelcomeSurveyEntry[]) => {
+    const goals = entries
+      .map(e => (e as any).coaching_goals)
+      .filter(g => g && typeof g === 'string' && g.length > 20);
+    
+    if (goals.length === 0) return [];
+    
+    const themePatterns: Record<string, string[]> = {
+      'Leadership Skills': ['leadership', 'lead', 'leader', 'managing people', 'manage team'],
+      'Executive Presence': ['executive presence', 'presence', 'confident', 'confidence', 'gravitas'],
+      'Communication': ['communication', 'communicate', 'speaking', 'presentation', 'articulate'],
+      'Time Management': ['time management', 'productivity', 'priorit', 'balance', 'workload'],
+      'Strategic Thinking': ['strategic', 'strategy', 'vision', 'big picture'],
+      'Delegation': ['delegation', 'delegate', 'empower', 'trust team'],
+      'Career Growth': ['career', 'promotion', 'growth', 'advancement', 'next level', 'new role'],
+      'Difficult Conversations': ['conflict', 'difficult conversation', 'feedback', 'tough talk'],
+      'Team Building': ['team', 'collaboration', 'relationship', 'peers'],
+      'Managing Up': ['managing up', 'stakeholder', 'executive', 'senior leader'],
+    };
+    
+    const themeCounts: Record<string, number> = {};
+    for (const goal of goals) {
+      const lower = goal.toLowerCase();
+      for (const [theme, patterns] of Object.entries(themePatterns)) {
+        if (patterns.some(p => lower.includes(p))) {
+          themeCounts[theme] = (themeCounts[theme] || 0) + 1;
+        }
+      }
+    }
+    
+    return Object.entries(themeCounts)
+      .map(([theme, count]) => ({ theme, count, pct: (count / goals.length) * 100 }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  };
 
   if (loading) {
      return (
@@ -383,6 +422,39 @@ const BaselineDashboard: React.FC = () => {
                             ))}
                         </div>
                     </div>
+
+                    {/* Coaching Goals Themes */}
+                    {stats.coachingGoals && stats.coachingGoals.length > 0 && (
+                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Lightbulb className="w-4 h-4 text-boon-yellow" /> Top Coaching Goals
+                        </h3>
+                        <div className="space-y-4">
+                            {stats.coachingGoals.map((item, index) => (
+                                <div key={item.theme}>
+                                    <div className="flex justify-between text-sm font-bold mb-2">
+                                        <span className="text-gray-700 flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-boon-blue/10 text-boon-blue text-xs flex items-center justify-center font-black">
+                                                {index + 1}
+                                            </span>
+                                            {item.theme}
+                                        </span>
+                                        <span className="text-gray-400">{item.pct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-boon-blue to-boon-purple rounded-full transition-all duration-500" 
+                                            style={{ width: `${item.pct}%` }} 
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 italic">
+                            Based on {data.filter(d => (d as any).coaching_goals).length} participant responses
+                        </p>
+                    </div>
+                    )}
 
                 </div>
 
