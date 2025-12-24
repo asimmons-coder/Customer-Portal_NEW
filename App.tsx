@@ -67,6 +67,7 @@ const MainPortalLayout: React.FC = () => {
   const [programs, setPrograms] = useState<string[]>([]);
   
   const [companyName, setCompanyName] = useState<string>('');
+  const [clientLogo, setClientLogo] = useState<string | null>(null);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
@@ -85,6 +86,18 @@ const MainPortalLayout: React.FC = () => {
             email: session.user.email,
           });
           Sentry.setTag('company', company);
+        }
+
+        // Fetch client logo
+        const companyBase = company.split(' - ')[0];
+        const { data: logoData } = await supabase
+          .from('company_logos')
+          .select('logo_url')
+          .ilike('company_name', `%${companyBase}%`)
+          .single();
+        
+        if (logoData?.logo_url) {
+          setClientLogo(logoData.logo_url);
         }
 
         // Fetch program type from program_config
@@ -189,10 +202,15 @@ const MainPortalLayout: React.FC = () => {
               alt="Boon Logo" 
               className="h-5 w-auto object-contain"
             />
-            {displayCompanyName && (
-              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide truncate max-w-[150px]">
-                {displayCompanyName}
-              </span>
+            {clientLogo && (
+              <>
+                <span className="text-gray-300">×</span>
+                <img 
+                  src={clientLogo} 
+                  alt="Client Logo" 
+                  className="h-6 w-auto object-contain max-w-[80px]"
+                />
+              </>
             )}
         </div>
         <button 
@@ -210,14 +228,21 @@ const MainPortalLayout: React.FC = () => {
         ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
       `}>
         <div className="hidden lg:block p-6 border-b border-gray-100">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <img 
               src="https://res.cloudinary.com/djbo6r080/image/upload/v1764863780/Wordmark_Blue_16_aw7lvc.png" 
               alt="Boon Logo" 
               className="h-5 w-auto object-contain"
             />
-            {isScale && (
-              <span className="text-xs font-bold bg-blue-100 text-blue-700 px-2 py-1 rounded">SCALE</span>
+            {clientLogo && (
+              <>
+                <span className="text-gray-300">×</span>
+                <img 
+                  src={clientLogo} 
+                  alt="Client Logo" 
+                  className="h-7 w-auto object-contain max-w-[100px]"
+                />
+              </>
             )}
           </div>
         </div>
