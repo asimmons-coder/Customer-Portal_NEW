@@ -125,19 +125,25 @@ const MainPortalLayout: React.FC = () => {
         setProgramTypeLoading(false);
 
         // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
-        const { data: sessionPrograms, error: sessionError } = await supabase
-          .from('sessions')
-          .select('program_title, program_name, program, cohort');
+        try {
+          const { data: sessionPrograms, error: sessionError } = await supabase
+            .from('sessions')
+            .select('program_title');
 
-        if (!sessionError && sessionPrograms && sessionPrograms.length > 0) {
-          const uniquePrograms = [...new Set(
-            sessionPrograms.map(s => s.program_title || s.program_name || s.program || s.cohort)
-              .filter(p => p && p.trim().length > 0)
-          )] as string[];
-          // Sort alphabetically for consistent ordering
-          if (uniquePrograms.length > 0) {
-            setPrograms(uniquePrograms.sort());
+          console.log('Session programs query:', { sessionPrograms, sessionError });
+
+          if (!sessionError && sessionPrograms && sessionPrograms.length > 0) {
+            const uniquePrograms = [...new Set(
+              sessionPrograms.map(s => s.program_title)
+                .filter(p => p && p.trim().length > 0)
+            )] as string[];
+            console.log('Unique programs found:', uniquePrograms);
+            if (uniquePrograms.length > 0) {
+              setPrograms(uniquePrograms.sort());
+            }
           }
+        } catch (progErr) {
+          console.error('Error fetching programs from sessions:', progErr);
         }
         
         // Fallback to program_config if no programs found from sessions
