@@ -138,15 +138,22 @@ const BaselineDashboard: React.FC = () => {
     const sortedRoles = Object.entries(roleCounts).sort((a, b) => b[1] - a[1]);
     const topRole = sortedRoles.length > 0 ? sortedRoles[0][0] : 'N/A';
 
-    // 2. Wellbeing (Average)
+    // 2. Wellbeing (Average) - scale to 1-10 if data is on 1-5 scale
     const wellbeingKeys = ['satisfaction', 'productivity', 'work_life_balance', 'motivation', 'inclusion'];
     const wellbeingAvgs = wellbeingKeys.map(key => {
-      const validValues = filtered.map(d => Number(d[key])).filter(v => !isNaN(v));
-      const avg = validValues.length ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
-      return { key, label: key.replace(/_/g, ' '), value: avg };
+      const validValues = filtered.map(d => Number(d[key])).filter(v => !isNaN(v) && v > 0);
+      if (validValues.length === 0) return { key, label: key.replace(/_/g, ' '), value: 0, hasData: false };
+      
+      const avg = validValues.reduce((a, b) => a + b, 0) / validValues.length;
+      
+      // Check if data is on 1-5 scale (max value <= 5) and scale to 1-10
+      const maxVal = Math.max(...validValues);
+      const scaledAvg = maxVal <= 5 ? avg * 2 : avg;
+      
+      return { key, label: key.replace(/_/g, ' '), value: scaledAvg, hasData: true };
     });
 
-    // 3. Competencies (Average)
+    // 3. Competencies (Average) - keep on 1-5 scale
     const compAvgs = Object.entries(COMPETENCY_MAP).map(([key, label]) => {
       // Robustly cast to Number to handle potential string data
       const validValues = filtered
@@ -154,8 +161,8 @@ const BaselineDashboard: React.FC = () => {
         .filter(v => !isNaN(v) && v > 0);
       
       const avg = validValues.length ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
-      return { key, label, value: avg };
-    }).sort((a, b) => b.value - a.value); // Sort by highest score
+      return { key, label, value: avg, hasData: validValues.length > 0 };
+    }).filter(c => c.hasData).sort((a, b) => b.value - a.value); // Filter out empty, sort by highest
 
     // 4. Demographics Helpers
     const getDistribution = (field: string) => {
@@ -283,6 +290,7 @@ const BaselineDashboard: React.FC = () => {
                     textColor="text-boon-purple"
                     isText
                 />
+                {stats.wellbeing.find(w => w.key === 'satisfaction')?.hasData && (
                  <KPICard 
                     title="Avg Satisfaction" 
                     value={stats.wellbeing.find(w => w.key === 'satisfaction')?.value.toFixed(1) || '-'} 
@@ -291,6 +299,8 @@ const BaselineDashboard: React.FC = () => {
                     textColor="text-boon-green"
                     subtext="/ 10"
                 />
+                )}
+                {stats.wellbeing.find(w => w.key === 'productivity')?.hasData && (
                 <KPICard 
                     title="Avg Productivity" 
                     value={stats.wellbeing.find(w => w.key === 'productivity')?.value.toFixed(1) || '-'} 
@@ -299,6 +309,7 @@ const BaselineDashboard: React.FC = () => {
                     textColor="text-boon-coral"
                     subtext="/ 10"
                 />
+                )}
             </div>
 
             {/* Main Content Grid */}
@@ -345,11 +356,11 @@ const BaselineDashboard: React.FC = () => {
                             <Smile className="w-4 h-4 text-boon-green" /> Wellbeing Baseline (1-10)
                         </h3>
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                            {stats.wellbeing.map((item, index) => (
+                            {stats.wellbeing.filter(item => item.hasData).map((item, index, arr) => (
                                 <div 
                                     key={item.key} 
                                     className={`flex flex-col items-center p-4 bg-gray-50 rounded-2xl ${
-                                        index === stats.wellbeing.length - 1 ? 'col-span-2 md:col-span-1 justify-self-center w-1/2 md:w-auto mx-auto md:mx-0' : ''
+                                        index === arr.length - 1 && arr.length % 2 !== 0 ? 'col-span-2 md:col-span-1 justify-self-center w-1/2 md:w-auto mx-auto md:mx-0' : ''
                                     }`}
                                 >
                                     <div className="relative w-20 h-20 md:w-24 md:h-24 flex items-center justify-center mb-3">
@@ -432,30 +443,38 @@ const KPICard = ({ title, value, icon, color, textColor, subtext, isText }: any)
     </div>
 );
 
-const DemographicCard = ({ title, data }: { title: string, data: { label: string, count: number, pct: number }[] }) => (
-    <div className="bg-white xl:p-6 rounded-2xl xl:shadow-sm xl:border border-gray-100">
-        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <PieChart className="w-3 h-3" /> {title}
-        </h4>
-        <div className="space-y-3">
-            {data.slice(0, 5).map((item) => (
-                <div key={item.label}>
-                    <div className="flex justify-between text-xs font-bold mb-1">
-                        <span className="text-gray-600 truncate max-w-[70%]">{item.label}</span>
-                        <span className="text-gray-400">{item.count} ({item.pct.toFixed(0)}%)</span>
+const DemographicCard = ({ title, data }: { title: string, data: { label: string, count: number, pct: number }[] }) => {
+    // Hide card if only "Unknown" at 100%
+    const hasRealData = data.some(item => item.label !== 'Unknown') || 
+                        (data.length === 1 && data[0].label === 'Unknown' && data[0].pct < 100);
+    
+    if (!hasRealData && data.length > 0) return null;
+    
+    return (
+        <div className="bg-white xl:p-6 rounded-2xl xl:shadow-sm xl:border border-gray-100">
+            <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <PieChart className="w-3 h-3" /> {title}
+            </h4>
+            <div className="space-y-3">
+                {data.slice(0, 5).map((item) => (
+                    <div key={item.label}>
+                        <div className="flex justify-between text-xs font-bold mb-1">
+                            <span className="text-gray-600 truncate max-w-[70%]">{item.label}</span>
+                            <span className="text-gray-400">{item.count} ({item.pct.toFixed(0)}%)</span>
+                        </div>
+                        <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                            <div 
+                                className="h-full bg-boon-purple/70 rounded-full" 
+                                style={{ width: `${item.pct}%` }} 
+                            />
+                        </div>
                     </div>
-                    <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
-                        <div 
-                            className="h-full bg-boon-purple/70 rounded-full" 
-                            style={{ width: `${item.pct}%` }} 
-                        />
-                    </div>
-                </div>
-            ))}
-            {data.length === 0 && <div className="text-xs text-gray-300 italic">No data available</div>}
+                ))}
+                {data.length === 0 && <div className="text-xs text-gray-300 italic">No data available</div>}
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const getWellbeingColor = (val: number) => {
     if (val >= 8) return '#6CD893'; // green
