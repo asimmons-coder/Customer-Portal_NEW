@@ -222,6 +222,44 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       'becky': 'rebecca',
       'kim': 'kimberly',
       'kimmy': 'kimberly',
+      'nik': 'nikolas',
+      'nick': 'nicholas',
+      'nicky': 'nicholas',
+      'chris': 'christopher',
+      'matt': 'matthew',
+      'pat': 'patrick',
+      'alex': 'alexander',
+      'andy': 'andrew',
+      'drew': 'andrew',
+      'ed': 'edward',
+      'eddie': 'edward',
+      'ted': 'theodore',
+      'teddy': 'theodore',
+      'steve': 'steven',
+      'steph': 'stephanie',
+      'tony': 'anthony',
+      'tony': 'antonio',
+      'josh': 'joshua',
+      'zach': 'zachary',
+      'zack': 'zachary',
+      'dan': 'daniel',
+      'danny': 'daniel',
+      'sam': 'samuel',
+      'sammy': 'samuel',
+      'ben': 'benjamin',
+      'benny': 'benjamin',
+      'greg': 'gregory',
+      'tim': 'timothy',
+      'timmy': 'timothy',
+      'tom': 'thomas',
+      'tommy': 'thomas',
+      'jon': 'jonathan',
+      'jonny': 'jonathan',
+      'ron': 'ronald',
+      'ronny': 'ronald',
+      'don': 'donald',
+      'donny': 'donald',
+      'ray': 'raymond',
     };
     
     // Split into parts
@@ -292,6 +330,16 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
     
     // Last names match exactly and first names are similar
     if (last1 === last2 && calculateSimilarity(first1, first2) > 0.8) return true;
+    
+    // Last names match exactly and one first name is a prefix of the other (min 3 chars)
+    // This catches cases like "Nik" vs "Nikolas" that aren't in the nickname map
+    if (last1 === last2) {
+      const shorter = first1.length < first2.length ? first1 : first2;
+      const longer = first1.length < first2.length ? first2 : first1;
+      if (shorter.length >= 3 && longer.startsWith(shorter)) {
+        return true;
+      }
+    }
     
     return false;
   };
