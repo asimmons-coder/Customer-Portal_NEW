@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getDashboardSessions, getCompetencyScores, getSurveyResponses } from '../lib/dataFetcher';
+import { getDashboardSessions, getCompetencyScores, getSurveyResponses, getProgramConfig } from '../lib/dataFetcher';
 import { FileDown, Loader2, X } from 'lucide-react';
+import { GoogleGenAI, Type } from "@google/genai";
 import jsPDF from 'jspdf';
 
 interface ReportGeneratorProps {
@@ -29,7 +30,20 @@ interface ReportData {
   };
   themes: { name: string; count: number }[];
   testimonials: string[];
+  programsThisYear: { name: string; startDate: string }[];
+  aiSummary: string;
 }
+
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {
+    return undefined;
+  }
+  return undefined;
+};
 
 const ReportGenerator: React.FC<ReportGeneratorProps> = ({ 
   companyName, 
@@ -67,6 +81,18 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     const company = session?.user?.app_metadata?.company || '';
     const companyBase = company.split(' - ')[0].toLowerCase();
     
+    // Calculate date range filter
+    const now = new Date();
+    let startDate: Date | null = null;
+    
+    if (dateRange === 'ytd') {
+      startDate = new Date(now.getFullYear(), 0, 1); // Jan 1 of current year
+    } else if (dateRange === 'q4') {
+      startDate = new Date(2024, 9, 1); // Oct 1, 2024
+    } else if (dateRange === 'q3') {
+      startDate = new Date(2024, 6, 1); // Jul 1, 2024
+    }
+    
     const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
       if (!company) return false;
       if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
@@ -80,16 +106,32 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
     };
     
+    const matchesProgram = (programTitle: string | undefined | null): boolean => {
+      if (selectedProgram === 'all') return true;
+      if (!programTitle) return false;
+      return programTitle === selectedProgram;
+    };
+    
+    const matchesDateRange = (dateStr: string | undefined | null): boolean => {
+      if (!startDate) return true; // 'all' time
+      if (!dateStr) return false;
+      const date = new Date(dateStr);
+      return date >= startDate;
+    };
+    
     // Fetch session data
     setProgress('Fetching session data...');
     const allSessions = await getDashboardSessions();
-    const sessions = allSessions.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+    const sessions = allSessions.filter(s => 
+      matchesCompany((s as any).account_name, (s as any).program_title) &&
+      matchesProgram((s as any).program_title) &&
+      matchesDateRange((s as any).session_date)
+    );
     
     const completedSessions = sessions.filter(s => (s as any).status === 'Completed');
     const uniqueEmployees = new Set(sessions.map(s => (s as any).employee_name?.toLowerCase()).filter(Boolean)).size;
     
     // Calculate monthly trend (last 6 months)
-    const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
     
     const monthlyMap = new Map<string, number>();
@@ -140,7 +182,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     // Fetch competency scores
     setProgress('Analyzing competency growth...');
     const allScores = await getCompetencyScores();
-    const scores = allScores.filter(c => matchesCompany((c as any).account, (c as any).program_title));
+    const scores = allScores.filter(c => 
+      matchesCompany((c as any).account, (c as any).program_title) &&
+      matchesProgram((c as any).program_title)
+    );
     
     const competencyMap = new Map<string, { preSum: number; postSum: number; count: number }>();
     
@@ -177,7 +222,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     // Fetch satisfaction data
     setProgress('Gathering satisfaction scores...');
     const allSurveys = await getSurveyResponses();
-    const surveys = allSurveys.filter(s => matchesCompany((s as any).account, (s as any).program_title));
+    const surveys = allSurveys.filter(s => 
+      matchesCompany((s as any).account, (s as any).program_title) &&
+      matchesProgram((s as any).program_title)
+    );
     
     const npsScores = surveys.map(s => (s as any).nps).filter(n => n != null);
     const csatScores = surveys.map(s => (s as any).coach_satisfaction).filter(n => n != null);
@@ -213,6 +261,69 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       })
       .slice(0, 5);
     
+    // Fetch programs launched this year
+    setProgress('Loading program data...');
+    const allPrograms = await getProgramConfig();
+    const programsFiltered = allPrograms.filter(p => matchesCompany((p as any).account_name, (p as any).program_title));
+    
+    const currentYear = now.getFullYear();
+    const programsThisYear = programsFiltered
+      .filter(p => {
+        const startDate = (p as any).program_start_date;
+        if (!startDate) return false;
+        return new Date(startDate).getFullYear() === currentYear;
+      })
+      .map(p => ({
+        name: (p as any).program_title || 'Unknown Program',
+        startDate: (p as any).program_start_date
+      }))
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    
+    // Generate AI summary
+    setProgress('Generating AI insights...');
+    let aiSummary = '';
+    
+    const apiKey = getApiKey();
+    if (apiKey && completedSessions.length > 0) {
+      try {
+        const ai = new GoogleGenAI({ apiKey });
+        
+        const summaryPrompt = `Generate a 2-3 sentence executive summary for a coaching program report. Be specific and use the data provided. Do not use generic phrases.
+
+Data:
+- Company: ${companyName}
+- Sessions completed: ${completedSessions.length}
+- Participants: ${uniqueEmployees}
+- Overall competency growth: ${Math.round(overallGrowth)}%
+- Top growth areas: ${competencyStats.slice(0, 3).map(c => `${c.name} (+${c.change}%)`).join(', ')}
+- NPS Score: +${nps}
+- Coach satisfaction: ${(csat).toFixed(1)}/10
+- Programs launched this year: ${programsThisYear.length} (${programsThisYear.map(p => p.name).join(', ')})
+- Top coaching themes: ${themes.slice(0, 3).map(t => t.name).join(', ')}
+
+Write a compelling summary highlighting the key achievements and impact. Start with the most impressive metric.`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: summaryPrompt,
+          config: {
+            maxOutputTokens: 200
+          }
+        });
+        
+        if (response.text) {
+          aiSummary = response.text.trim();
+        }
+      } catch (err) {
+        console.error('AI summary generation failed:', err);
+        // Fall back to template summary
+        aiSummary = `Your team showed a ${Math.round(overallGrowth)}% overall improvement in leadership competencies, with ${completedSessions.length} coaching sessions completed across ${uniqueEmployees} participants.`;
+      }
+    } else {
+      // Fallback summary without AI
+      aiSummary = `Your team showed a ${Math.round(overallGrowth)}% overall improvement in leadership competencies, with ${completedSessions.length} coaching sessions completed across ${uniqueEmployees} participants.`;
+    }
+    
     return {
       sessions: {
         total: sessions.length,
@@ -231,7 +342,9 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
         csat: Math.round(csat * 10) / 10
       },
       themes,
-      testimonials: allTestimonials
+      testimonials: allTestimonials,
+      programsThisYear,
+      aiSummary
     };
   };
 
@@ -293,15 +406,31 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       pdf.text('Executive Summary', margin, y);
       y += 8;
       
-      drawRect(margin, y, pageWidth - 2 * margin, 20, '#EFF6FF', 3);
+      // Calculate box height based on AI summary length
       pdf.setFontSize(10);
+      const summaryLines = pdf.splitTextToSize(data.aiSummary, pageWidth - 2 * margin - 10);
+      const summaryBoxHeight = Math.max(20, summaryLines.length * 5 + 10);
+      
+      drawRect(margin, y, pageWidth - 2 * margin, summaryBoxHeight, '#EFF6FF', 3);
       pdf.setFont('helvetica', 'normal');
       const rgb = hexToRgb('#1E40AF');
       pdf.setTextColor(rgb.r, rgb.g, rgb.b);
-      const summaryText = `Your team showed a ${Math.round(data.impact.overallGrowth)}% overall improvement in leadership competencies, with ${data.sessions.completed} coaching sessions completed across ${data.sessions.employees} participants.`;
-      const summaryLines = pdf.splitTextToSize(summaryText, pageWidth - 2 * margin - 10);
       pdf.text(summaryLines, margin + 5, y + 8);
-      y += 28;
+      y += summaryBoxHeight + 8;
+      
+      // Programs Launched This Year
+      if (data.programsThisYear.length > 0) {
+        pdf.setTextColor(31, 41, 55);
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text(`Programs Launched in ${new Date().getFullYear()}: `, margin, y);
+        
+        pdf.setFont('helvetica', 'normal');
+        const programNames = data.programsThisYear.map(p => p.name).slice(0, 4).join(', ');
+        const moreText = data.programsThisYear.length > 4 ? ` +${data.programsThisYear.length - 4} more` : '';
+        pdf.text(programNames + moreText, margin + 55, y);
+        y += 10;
+      }
       
       // Key Metrics
       pdf.setTextColor(31, 41, 55);
