@@ -124,13 +124,12 @@ const MainPortalLayout: React.FC = () => {
         }
         setProgramTypeLoading(false);
 
-        // Fetch program titles for sidebar from sessions data (more reliable than program_config)
+        // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
         const { data: sessionPrograms, error: sessionError } = await supabase
           .from('sessions')
-          .select('program_title')
-          .ilike('account_name', `%${company.split(' - ')[0]}%`);
+          .select('program_title');
 
-        if (!sessionError && sessionPrograms) {
+        if (!sessionError && sessionPrograms && sessionPrograms.length > 0) {
           const uniquePrograms = [...new Set(
             sessionPrograms.map(s => s.program_title)
               .filter(p => p && p.trim().length > 0)
@@ -138,7 +137,7 @@ const MainPortalLayout: React.FC = () => {
           // Sort alphabetically for consistent ordering
           setPrograms(uniquePrograms.sort());
         } else {
-          // Fallback to program_config if sessions query fails
+          // Fallback to program_config if sessions query fails or returns no data
           const { data, error } = await supabase
             .from('program_config')
             .select('program_title, program_start_date')

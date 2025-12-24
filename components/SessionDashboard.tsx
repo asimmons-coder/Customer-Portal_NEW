@@ -685,21 +685,11 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
              </span>
           </p>
         </div>
-        
-        <button 
-             onClick={() => setShowSetup(!showSetup)}
-             className="text-xs font-bold text-gray-400 hover:text-boon-blue transition flex items-center gap-1 uppercase tracking-wide"
-        >
-             <Code className="w-3 h-3" />
-             {showSetup ? 'Hide Schema Helper' : 'Schema Helper'}
-        </button>
       </div>
 
       {/* ExecutiveSignals hidden for now
       <ExecutiveSignals context="Sessions" data={{ filteredData, totalSessions, totalCompleted, avgSessions, adoptionRate, ...surveyMetrics }} />
       */}
-
-      {showSetup && <SetupGuide />}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
