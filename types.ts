@@ -1,4 +1,3 @@
-
 export interface Employee {
   id: number | string;
   first_name: string;
@@ -56,6 +55,137 @@ export interface SessionWithEmployee extends Session {
   communication_skills?: string;
 }
 
+// ============================================
+// NEW NORMALIZED SCHEMA TYPES
+// ============================================
+
+/**
+ * Unified survey submission record - replaces welcome_survey_baseline and survey_responses_unified
+ */
+export interface SurveySubmission {
+  id: string;
+  created_at: string;
+  email: string;
+  first_name?: string;
+  last_name?: string;
+  participant_name?: string;
+  account_name: string;
+  program_title: string;
+  salesforce_program_id: string;
+  company_id: string;
+  cohort?: string;
+  survey_type: 'baseline' | 'end_of_program';
+  program_type?: string;
+  submitted_at?: string;
+  typeform_response_id?: string;
+  
+  // Demographics
+  age_range?: string;
+  gender?: string;
+  role?: string;
+  years_experience?: string;
+  tenure?: string;
+  previous_coaching?: boolean;
+  
+  // Wellbeing metrics (baseline)
+  wellbeing_satisfaction?: number;
+  wellbeing_productivity?: number;
+  wellbeing_balance?: number;
+  wellbeing_motivation?: number;
+  wellbeing_inclusion?: number;
+  
+  // Satisfaction metrics (end_of_program)
+  nps?: number;
+  coach_satisfaction?: number;
+  coach_name?: string;
+  continue_likelihood?: number;
+  
+  // Feedback text
+  feedback_learned?: string;
+  feedback_insight?: string;
+  feedback_coach_description?: string;
+  feedback_suggestions?: string;
+  feedback_enjoying?: string;
+  feedback_experience?: string;
+  coaching_goals?: string;
+  
+  // Coaching attributes
+  attr_safe?: boolean;
+  attr_listened?: boolean;
+  attr_tools?: boolean;
+  attr_challenged?: boolean;
+  
+  // Benefits
+  benefit_productive?: boolean;
+  benefit_stress?: boolean;
+  benefit_present?: boolean;
+  benefit_talents?: boolean;
+  benefit_optimistic?: boolean;
+}
+
+/**
+ * Individual competency score record
+ */
+export interface CompetencyScoreRecord {
+  id: string;
+  created_at: string;
+  survey_submission_id: string;
+  email: string;
+  account_name: string;
+  program_title: string;
+  salesforce_program_id: string;
+  company_id: string;
+  competency_name: string;
+  score: number;
+  score_label?: string;
+  score_type: 'baseline' | 'end_of_program';
+}
+
+/**
+ * Pre/post competency comparison from the view
+ */
+export interface CompetencyPrePost {
+  email: string;
+  account_name: string;
+  program_title: string;
+  salesforce_program_id: string;
+  company_id: string;
+  competency_name: string;
+  pre_score: number;
+  pre_label?: string;
+  post_score: number;
+  post_label?: string;
+  score_change: number;
+  percent_change: number;
+}
+
+/**
+ * Focus area selection record
+ */
+export interface FocusAreaSelection {
+  id: string;
+  created_at: string;
+  survey_submission_id: string;
+  email: string;
+  account_name: string;
+  program_title: string;
+  salesforce_program_id: string;
+  company_id: string;
+  focus_area_category: string;
+  focus_area_name: string;
+  is_primary: boolean;
+  selected: boolean;
+}
+
+// ============================================
+// LEGACY COMPATIBLE TYPES
+// These map new schema data to old interfaces for gradual migration
+// ============================================
+
+/**
+ * Competency score with pre/post - used by dashboard components
+ * Maps from CompetencyPrePost view
+ */
 export interface CompetencyScore {
   id?: number | string;
   email: string;
@@ -66,8 +196,16 @@ export interface CompetencyScore {
   feedback_learned?: string;
   feedback_insight?: string;
   feedback_suggestions?: string;
+  // New fields
+  program_title?: string;
+  account_name?: string;
+  company_id?: string;
 }
 
+/**
+ * Survey response - used by dashboard components
+ * Maps from SurveySubmission with survey_type='end_of_program'
+ */
 export interface SurveyResponse {
   email: string;
   nps?: number;
@@ -75,8 +213,16 @@ export interface SurveyResponse {
   feedback_learned?: string;
   feedback_insight?: string;
   feedback_suggestions?: string;
+  // New fields
+  program_title?: string;
+  account_name?: string;
+  company_id?: string;
 }
 
+/**
+ * Welcome survey entry - used by dashboard components
+ * Maps from SurveySubmission with survey_type='baseline'
+ */
 export interface WelcomeSurveyEntry {
   cohort: string;
   company: string;
@@ -90,35 +236,13 @@ export interface WelcomeSurveyEntry {
   tenure?: string;
   years_experience?: string;
   previous_coaching?: string;
+  coaching_goals?: string;
   
-  // Focus areas (Main)
-  focus_effective_communication?: boolean;
-  focus_persuasion_and_influence?: boolean;
-  focus_adaptability_and_resilience?: boolean;
-  focus_strategic_thinking?: boolean;
-  focus_emotional_intelligence?: boolean;
-  focus_building_relationships_at_work?: boolean;
-  focus_self_confidence_and_imposter_syndrome?: boolean;
-  focus_delegation_and_accountability?: boolean;
-  focus_giving_and_receiving_feedback?: boolean;
-  focus_effective_planning_and_execution?: boolean;
-  focus_change_management?: boolean;
-  focus_time_management_and_productivity?: boolean;
-
-  // Focus areas (Sub-topics)
-  sub_active_listening?: boolean;
-  sub_articulating_ideas_clearly?: boolean;
-  sub_conflict_resolution?: boolean;
-  sub_giving_effective_feedback?: boolean;
-  sub_developing_feedback_skills?: boolean;
-  sub_effective_delegation_techniques?: boolean;
-  sub_developing_delegation_skills?: boolean;
-  sub_handling_difficult_feedback?: boolean;
-  sub_building_accountability?: boolean;
-  sub_aligning_strategy_with_execution?: boolean;
-  sub_communication_in_teams?: boolean;
-  sub_monitoring_and_providing_feedback?: boolean;
-  sub_handling_challenges_in_delegation?: boolean;
+  // New fields
+  program_title?: string;
+  account_name?: string;
+  company_id?: string;
+  email?: string;
   
   [key: string]: any;
 }
@@ -128,7 +252,6 @@ export interface ProgramConfig {
   account_name: string;
   sessions_per_employee: number;
   program_name?: string;
-  // Fix: Adding missing properties used in dashboards
   program_title?: string;
   program_start_date?: string;
   program_type?: string;

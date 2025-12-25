@@ -100,9 +100,9 @@ const ImpactDashboard: React.FC = () => {
           return companyBase.includes('wonderful') && programTitle.toLowerCase().startsWith('twc');
         };
         
-        const filteredScores = compData.filter(c => matchesCompany((c as any).account) || matchesTWC((c as any).program_title));
-        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account) || matchesTWC((b as any).program_title));
-        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account) || matchesTWC((s as any).program_title));
+        const filteredScores = compData.filter(c => matchesCompany((c as any).account_name) || matchesTWC((c as any).program_title));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name) || matchesTWC((b as any).program_title));
+        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name) || matchesTWC((s as any).program_title));
         
         setScores(filteredScores);
         setBaselineData(filteredBaseline);
@@ -128,10 +128,10 @@ const ImpactDashboard: React.FC = () => {
     const normalize = (str: string) => (str || '').toLowerCase().trim();
     const selNorm = normalize(selectedProgram);
 
-    // 1. Determine Unique Programs from BOTH sources (prefer program_title)
+    // 1. Determine Unique Programs from BOTH sources (prefer program_title) - trim whitespace
     const uniquePrograms = ['All Programs', ...new Set([
-        ...scores.map(s => (s as any).program_title || s.program),
-        ...baselineData.map(b => (b as any).program_title || b.cohort)
+        ...scores.map(s => ((s as any).program_title || s.program || '').trim()),
+        ...baselineData.map(b => ((b as any).program_title || b.cohort || '').trim())
     ].filter(Boolean))].sort();
 
 

@@ -252,11 +252,11 @@ const ScaleDashboard: React.FC = () => {
       currentAccount,
       accountFirstWord,
       totalSurveys: surveys.length,
-      sampleSurveyAccounts: surveys.slice(0, 5).map(s => (s as any).account)
+      sampleSurveyAccounts: surveys.slice(0, 5).map(s => (s as any).account_name)
     });
     
     const cohortSurveys = surveys.filter(s => {
-      const surveyAccount = normalize((s as any).account || '');
+      const surveyAccount = normalize((s as any).account_name || '');
       const match = surveyAccount.includes(accountFirstWord) || accountFirstWord.includes(surveyAccount);
       return match;
     });
