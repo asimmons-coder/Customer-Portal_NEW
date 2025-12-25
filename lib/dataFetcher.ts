@@ -182,14 +182,14 @@ export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
 };
 
 /**
- * Fetches survey responses (end of program) in legacy format.
- * Uses survey_submissions table filtered by survey_type='end_of_program'.
+ * Fetches survey responses with NPS/CSAT data.
+ * Includes end_of_program, feedback (every-other-session), and first_session surveys.
  */
 export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
   const { data, error } = await supabase
     .from('survey_submissions')
     .select('*')
-    .eq('survey_type', 'end_of_program');
+    .in('survey_type', ['end_of_program', 'feedback', 'first_session']);
 
   if (error) {
     console.error('Error fetching survey responses:', error);
@@ -208,6 +208,7 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     program_title: d.program_title,
     account_name: d.account_name,
     company_id: d.company_id,
+    survey_type: d.survey_type, // Include survey_type for filtering if needed
   })) as SurveyResponse[];
 };
 
