@@ -128,10 +128,10 @@ const ImpactDashboard: React.FC = () => {
     const normalize = (str: string) => (str || '').toLowerCase().trim();
     const selNorm = normalize(selectedProgram);
 
-    // 1. Determine Unique Programs from BOTH sources (prefer program_title)
+    // 1. Determine Unique Programs from BOTH sources (prefer program_title) - trim whitespace
     const uniquePrograms = ['All Programs', ...new Set([
-        ...scores.map(s => (s as any).program_title || s.program),
-        ...baselineData.map(b => (b as any).program_title || b.cohort)
+        ...scores.map(s => ((s as any).program_title || s.program || '').trim()),
+        ...baselineData.map(b => ((b as any).program_title || b.cohort || '').trim())
     ].filter(Boolean))].sort();
 
 

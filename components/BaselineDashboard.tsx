@@ -136,8 +136,10 @@ const BaselineDashboard: React.FC = () => {
       }
     });
     
-    // Extract unique cohorts from program_title (preferred) or cohort field
-    const programTitles = data.map(d => (d as any).program_title || d.cohort).filter(Boolean) as string[];
+    // Extract unique cohorts from program_title (preferred) or cohort field - trim whitespace
+    const programTitles = data
+      .map(d => ((d as any).program_title || d.cohort || '').trim())
+      .filter(Boolean) as string[];
     const uniquePrograms = Array.from(new Set(programTitles));
     
     // Sort by start date (most recent first)
