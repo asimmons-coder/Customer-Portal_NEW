@@ -164,8 +164,10 @@ const HomeDashboard: React.FC = () => {
       }
     });
     
-    // Get unique programs from sessions
-    const sessionCohorts = sessions.map(s => (s as any).program_title || s.program_name || s.cohort || s.program).filter(Boolean) as string[];
+    // Get unique programs from sessions - trim whitespace to prevent duplicates
+    const sessionCohorts = sessions
+      .map(s => ((s as any).program_title || s.program_name || s.cohort || s.program || '').trim())
+      .filter(Boolean) as string[];
     const unique = Array.from(new Set(sessionCohorts));
     
     // Sort by start date (most recent first), then alphabetically for those without dates
