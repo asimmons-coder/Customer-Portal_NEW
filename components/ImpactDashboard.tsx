@@ -100,9 +100,9 @@ const ImpactDashboard: React.FC = () => {
           return companyBase.includes('wonderful') && programTitle.toLowerCase().startsWith('twc');
         };
         
-        const filteredScores = compData.filter(c => matchesCompany((c as any).account) || matchesTWC((c as any).program_title));
-        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account) || matchesTWC((b as any).program_title));
-        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account) || matchesTWC((s as any).program_title));
+        const filteredScores = compData.filter(c => matchesCompany((c as any).account_name) || matchesTWC((c as any).program_title));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name) || matchesTWC((b as any).program_title));
+        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name) || matchesTWC((s as any).program_title));
         
         setScores(filteredScores);
         setBaselineData(filteredBaseline);

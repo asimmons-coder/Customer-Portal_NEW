@@ -7,7 +7,8 @@ import {
   getSurveyResponses, 
   getEmployeeRoster,
   getWelcomeSurveyData,
-  getProgramConfig
+  getProgramConfig,
+  getFocusAreaSelections
 } from '../lib/dataFetcher';
 import { 
   SessionWithEmployee, 
@@ -15,7 +16,8 @@ import {
   SurveyResponse, 
   Employee,
   WelcomeSurveyEntry,
-  ProgramConfig
+  ProgramConfig,
+  FocusAreaSelection
 } from '../types';
 import { 
   TrendingUp, 
@@ -50,6 +52,7 @@ const HomeDashboard: React.FC = () => {
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [baselineData, setBaselineData] = useState<WelcomeSurveyEntry[]>([]);
+  const [focusAreas, setFocusAreas] = useState<FocusAreaSelection[]>([]);
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -75,12 +78,13 @@ const HomeDashboard: React.FC = () => {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
         }
 
-        const [sessData, compData, survData, empData, baseData, configData, benchmarkData] = await Promise.all([
+        const [sessData, compData, survData, empData, baseData, focusData, configData, benchmarkData] = await Promise.all([
           getDashboardSessions(),
           getCompetencyScores(),
           getSurveyResponses(),
           getEmployeeRoster(),
           getWelcomeSurveyData(),
+          getFocusAreaSelections(),
           getProgramConfig(),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
@@ -123,9 +127,10 @@ const HomeDashboard: React.FC = () => {
         // Filter all data by company
         const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
-        const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account));
-        const filteredSurveys = survData.filter(s => matchesCompany((s as any).account));
-        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account));
+        const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account_name, (c as any).program_title));
+        const filteredSurveys = survData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name, (b as any).program_title));
+        const filteredFocusAreas = focusData.filter(f => matchesCompany(f.account_name, f.program_title));
         const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name));
         
         setSessions(filteredSessions);
@@ -133,6 +138,7 @@ const HomeDashboard: React.FC = () => {
         setSurveys(filteredSurveys);
         setEmployees(filteredEmployees);
         setBaselineData(filteredBaseline);
+        setFocusAreas(filteredFocusAreas);
         setProgramConfig(filteredConfig);
         
         // Fallback to data inference if auth metadata is missing
@@ -159,7 +165,7 @@ const HomeDashboard: React.FC = () => {
     });
     
     // Get unique programs from sessions
-    const sessionCohorts = sessions.map(s => (s as any).program_title || s.program_name || s.cohort || s.program).filter(Boolean);
+    const sessionCohorts = sessions.map(s => (s as any).program_title || s.program_name || s.cohort || s.program).filter(Boolean) as string[];
     const unique = Array.from(new Set(sessionCohorts));
     
     // Sort by start date (most recent first), then alphabetically for those without dates
@@ -301,31 +307,20 @@ const HomeDashboard: React.FC = () => {
         return bPt === selNorm || bCoh === selNorm || bComp === selNorm || (bCoh && selNorm.includes(bCoh));
     });
 
-    const focusMapping: Record<string, string> = {
-      'Active Listening': 'sub_active_listening',
-      'Articulating Ideas Clearly': 'sub_articulating_ideas_clearly',
-      'Conflict Resolution': 'sub_conflict_resolution',
-      'Giving Effective Feedback': 'sub_giving_effective_feedback',
-      'Developing Feedback Skills': 'sub_developing_feedback_skills',
-      'Effective Delegation Techniques': 'sub_effective_delegation_techniques',
-      'Developing Delegation Skills': 'sub_developing_delegation_skills',
-      'Handling Difficult Feedback': 'sub_handling_difficult_feedback',
-      'Building Accountability': 'sub_building_accountability',
-      'Aligning Strategy with Execution': 'sub_aligning_strategy_with_execution',
-      'Communication in Teams': 'sub_communication_in_teams',
-      'Monitoring & Providing Feedback': 'sub_monitoring_and_providing_feedback',
-      'Handling Delegation Challenges': 'sub_handling_challenges_in_delegation'
-    };
+    // Filter focus areas by cohort using the new focus_area_selections table
+    const cohortFocusAreas = focusAreas.filter(f => {
+        if (isAll) return true;
+        const fPt = normalize(f.program_title || '');
+        return fPt === selNorm;
+    });
 
+    // Calculate focus area counts from the new normalized table
     const focusCounts: Record<string, number> = {};
-    Object.keys(focusMapping).forEach(label => focusCounts[label] = 0);
-
-    cohortBaseline.forEach(b => {
-      Object.entries(focusMapping).forEach(([label, key]) => {
-         if (b[key]) {
-            focusCounts[label] = (focusCounts[label] || 0) + 1;
-         }
-      });
+    cohortFocusAreas.forEach(f => {
+      if (f.selected) {
+        const label = f.focus_area_name;
+        focusCounts[label] = (focusCounts[label] || 0) + 1;
+      }
     });
     
     const topFocusAreas = Object.entries(focusCounts)
@@ -491,7 +486,7 @@ const HomeDashboard: React.FC = () => {
         selectedCohortName: getCohortDisplayName(selectedCohort),
         sessionsPerEmployee
     };
-  }, [sessions, competencies, surveys, employees, baselineData, selectedCohort, programConfig, companyName]);
+  }, [sessions, competencies, surveys, employees, baselineData, focusAreas, selectedCohort, programConfig, companyName]);
 
   if (loading) {
     return (

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getWelcomeSurveyData, getProgramConfig } from '../lib/dataFetcher';
-import { WelcomeSurveyEntry, ProgramConfig } from '../types';
+import { getWelcomeSurveyData, getProgramConfig, getFocusAreaSelections, getBaselineCompetencyScores } from '../lib/dataFetcher';
+import { WelcomeSurveyEntry, ProgramConfig, FocusAreaSelection, CompetencyScoreRecord } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
 import { 
@@ -20,6 +20,8 @@ import {
 
 const BaselineDashboard: React.FC = () => {
   const [data, setData] = useState<WelcomeSurveyEntry[]>([]);
+  const [focusAreas, setFocusAreas] = useState<FocusAreaSelection[]>([]);
+  const [baselineCompetencies, setBaselineCompetencies] = useState<CompetencyScoreRecord[]>([]);
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,22 +33,6 @@ const BaselineDashboard: React.FC = () => {
   // Mobile accordion state
   const [demographicsOpen, setDemographicsOpen] = useState(false);
 
-  // Competency Key Map
-  const COMPETENCY_MAP = {
-    comp_effective_communication: "Effective Communication",
-    comp_persuasion_and_influence: "Persuasion & Influence",
-    comp_adaptability_and_resilience: "Adaptability & Resilience",
-    comp_strategic_thinking: "Strategic Thinking",
-    comp_emotional_intelligence: "Emotional Intelligence",
-    comp_building_relationships_at_work: "Building Relationships",
-    comp_self_confidence_and_imposter_syndrome: "Confidence & Imposter Syndrome",
-    comp_delegation_and_accountability: "Delegation & Accountability",
-    comp_giving_and_receiving_feedback: "Giving & Receiving Feedback",
-    comp_effective_planning_and_execution: "Planning & Execution",
-    comp_change_management: "Change Management",
-    comp_time_management_and_productivity: "Time Management"
-  };
-
   useEffect(() => {
     const fetch = async () => {
       try {
@@ -57,8 +43,10 @@ const BaselineDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         const companyBase = company.split(' - ')[0].toLowerCase();
         
-        const [result, configData, benchmarkData] = await Promise.all([
+        const [result, focusData, competencyData, configData, benchmarkData] = await Promise.all([
           getWelcomeSurveyData(),
+          getFocusAreaSelections(),
+          getBaselineCompetencyScores(),
           getProgramConfig(),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
@@ -78,10 +66,34 @@ const BaselineDashboard: React.FC = () => {
         
         // Filter by company
         const filteredResult = result.filter(b => {
-          const account = ((b as any).account || '').toLowerCase();
+          const account = ((b as any).account_name || (b as any).account || '').toLowerCase();
           const programTitle = ((b as any).program_title || '').toLowerCase();
           
           // For Wonderful Company, only include TWC programs (exclude FSNA, etc.)
+          if (companyBase.includes('wonderful')) {
+            return programTitle.startsWith('twc');
+          }
+          
+          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
+        });
+        
+        // Filter focus areas by company
+        const filteredFocusAreas = focusData.filter(f => {
+          const account = (f.account_name || '').toLowerCase();
+          const programTitle = (f.program_title || '').toLowerCase();
+          
+          if (companyBase.includes('wonderful')) {
+            return programTitle.startsWith('twc');
+          }
+          
+          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
+        });
+        
+        // Filter baseline competencies by company
+        const filteredCompetencies = competencyData.filter(c => {
+          const account = (c.account_name || '').toLowerCase();
+          const programTitle = (c.program_title || '').toLowerCase();
+          
           if (companyBase.includes('wonderful')) {
             return programTitle.startsWith('twc');
           }
@@ -103,6 +115,8 @@ const BaselineDashboard: React.FC = () => {
         
         console.log("Raw Baseline Data:", filteredResult); // Debug log
         setData(filteredResult);
+        setFocusAreas(filteredFocusAreas);
+        setBaselineCompetencies(filteredCompetencies);
         setProgramConfig(filteredConfig);
       } catch (err: any) {
         setError(err.message || 'Failed to load survey data');
@@ -123,7 +137,7 @@ const BaselineDashboard: React.FC = () => {
     });
     
     // Extract unique cohorts from program_title (preferred) or cohort field
-    const programTitles = data.map(d => (d as any).program_title || d.cohort).filter(Boolean);
+    const programTitles = data.map(d => (d as any).program_title || d.cohort).filter(Boolean) as string[];
     const uniquePrograms = Array.from(new Set(programTitles));
     
     // Sort by start date (most recent first)
@@ -179,16 +193,35 @@ const BaselineDashboard: React.FC = () => {
       return { key, label: key.replace(/_/g, ' '), value: scaledAvg, hasData: true };
     });
 
-    // 3. Competencies (Average) - keep on 1-5 scale
-    const compAvgs = Object.entries(COMPETENCY_MAP).map(([key, label]) => {
-      // Robustly cast to Number to handle potential string data
-      const validValues = filtered
-        .map(d => Number(d[key]))
-        .filter(v => !isNaN(v) && v > 0);
-      
-      const avg = validValues.length ? validValues.reduce((a, b) => a + b, 0) / validValues.length : 0;
-      return { key, label, value: avg, hasData: validValues.length > 0 };
-    }).filter(c => c.hasData).sort((a, b) => b.value - a.value); // Filter out empty, sort by highest
+    // 3. Competencies (Average) from competency_scores table - keep on 1-5 scale
+    // Filter competencies by the same cohort filter
+    const cohortCompetencies = baselineCompetencies.filter(c => {
+      if (selectedCohort === 'All Cohorts') return true;
+      const pt = (c.program_title || '').toLowerCase();
+      return pt === selectedCohort.toLowerCase();
+    });
+    
+    // Aggregate by competency name
+    const compMap = new Map<string, { sum: number; count: number }>();
+    cohortCompetencies.forEach(c => {
+      const name = c.competency_name;
+      const score = Number(c.score);
+      if (!isNaN(score) && score > 0) {
+        if (!compMap.has(name)) {
+          compMap.set(name, { sum: 0, count: 0 });
+        }
+        const entry = compMap.get(name)!;
+        entry.sum += score;
+        entry.count++;
+      }
+    });
+    
+    const compAvgs = Array.from(compMap.entries()).map(([label, data]) => ({
+      key: label,
+      label,
+      value: data.sum / data.count,
+      hasData: data.count > 0
+    })).filter(c => c.hasData).sort((a, b) => b.value - a.value);
 
     // 4. Demographics Helpers
     const getDistribution = (field: string) => {
@@ -289,7 +322,7 @@ const BaselineDashboard: React.FC = () => {
         coachingGoals: analyzeCoachingGoals(filtered)
       }
     };
-  }, [data, selectedCohort, programConfig]);
+  }, [data, selectedCohort, programConfig, baselineCompetencies]);
 
   if (loading) {
      return (
