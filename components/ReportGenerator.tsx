@@ -171,7 +171,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     setProgress('Analyzing competency growth...');
     const allScores = await getCompetencyScores();
     const scores = allScores.filter(c => 
-      matchesCompany((c as any).account_name, (c as any).program_title) &&
+      matchesCompany((c as any).account, (c as any).program_title) &&
       matchesProgram((c as any).program_title)
     );
     
@@ -211,7 +211,7 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     setProgress('Gathering satisfaction scores...');
     const allSurveys = await getSurveyResponses();
     const surveys = allSurveys.filter(s => 
-      matchesCompany((s as any).account_name, (s as any).program_title) &&
+      matchesCompany((s as any).account, (s as any).program_title) &&
       matchesProgram((s as any).program_title)
     );
     

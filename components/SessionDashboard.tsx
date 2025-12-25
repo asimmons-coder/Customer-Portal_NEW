@@ -114,7 +114,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           // Filter by company
           const filteredSessions = sessionsData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
           const filteredEmployees = rosterData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
-          const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+          const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account));
           
           setSessions(filteredSessions || []);
           setEmployees(filteredEmployees || []);
