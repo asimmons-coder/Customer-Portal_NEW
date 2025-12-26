@@ -88,8 +88,6 @@ const HomeDashboard: React.FC = () => {
           getProgramConfig(),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
-        console.log('DEBUG surveys:', survData.length, survData.filter(s => s.survey_type === 'first_session'));
-console.log('DEBUG cohort2:', survData.filter(s => s.program_title?.includes('Cohort 2')));
         
         // Set benchmarks
         const benchmarkRows = benchmarkData.data || [];
@@ -166,9 +164,12 @@ console.log('DEBUG cohort2:', survData.filter(s => s.program_title?.includes('Co
       }
     });
     
-    // Get unique programs from sessions - trim whitespace to prevent duplicates
+    // Get unique programs from sessions - normalize to display names before deduplication
     const sessionCohorts = sessions
-      .map(s => ((s as any).program_title || s.program_name || s.cohort || s.program || '').trim())
+      .map(s => {
+        const raw = ((s as any).program_title || s.program_name || s.cohort || s.program || '').trim();
+        return PROGRAM_DISPLAY_NAMES[raw] || raw;  // Convert CP codes to display names
+      })
       .filter(Boolean) as string[];
     const unique = Array.from(new Set(sessionCohorts));
     
