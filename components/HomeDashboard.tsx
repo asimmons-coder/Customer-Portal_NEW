@@ -88,6 +88,11 @@ const HomeDashboard: React.FC = () => {
           getProgramConfig(),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
+
+        // DEBUG - remove after fixing
+        console.log('DEBUG W&P surveys:', survData.filter(s => s.account_name?.includes('W&P')));
+        console.log('DEBUG survey program_titles:', [...new Set(survData.map(s => s.program_title))].slice(0, 20));
+        console.log('DEBUG first_session surveys:', survData.filter(s => s.survey_type === 'first_session'));
         
         // Set benchmarks
         const benchmarkRows = benchmarkData.data || [];
