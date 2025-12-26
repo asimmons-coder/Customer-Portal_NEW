@@ -186,21 +186,35 @@ export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
  * Includes end_of_program, feedback (every-other-session), and first_session surveys.
  */
 export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
-  const { data, error } = await supabase
-    .from('survey_submissions')
-    .select('*')
-    .in('survey_type', ['end_of_program', 'feedback', 'first_session'])
-    .not('nps', 'is', null)
-    .limit(10000);  // Override default 1000 limit
+  // Supabase has a 1000 row default limit. We need to paginate to get all records.
+  const allData: any[] = [];
+  let from = 0;
+  const pageSize = 1000;
+  
+  while (true) {
+    const { data, error } = await supabase
+      .from('survey_submissions')
+      .select('*')
+      .in('survey_type', ['end_of_program', 'feedback', 'first_session'])
+      .not('nps', 'is', null)
+      .range(from, from + pageSize - 1);
 
-  if (error) {
-    console.error('Error fetching survey responses:', error);
-    Sentry.captureException(error, { tags: { query: 'getSurveyResponses' } });
-    return [];
+    if (error) {
+      console.error('Error fetching survey responses:', error);
+      Sentry.captureException(error, { tags: { query: 'getSurveyResponses' } });
+      break;
+    }
+
+    if (!data || data.length === 0) break;
+    
+    allData.push(...data);
+    
+    if (data.length < pageSize) break; // Last page
+    from += pageSize;
   }
 
   // Map to legacy SurveyResponse format
-  return data.map((d: any) => ({
+  return allData.map((d: any) => ({
     email: d.email,
     nps: d.nps,
     coach_satisfaction: d.coach_satisfaction,
