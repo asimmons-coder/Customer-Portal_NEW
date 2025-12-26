@@ -186,10 +186,15 @@ export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
  * Includes end_of_program, feedback (every-other-session), and first_session surveys.
  */
 export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
+  console.log('DEBUG: Fetching surveys with types: end_of_program, feedback, first_session');
+  
   const { data, error } = await supabase
     .from('survey_submissions')
     .select('*')
     .in('survey_type', ['end_of_program', 'feedback', 'first_session']);
+
+  console.log('DEBUG: Raw survey data returned:', data?.length, 'records');
+  console.log('DEBUG: Survey types returned:', [...new Set(data?.map(d => d.survey_type))]);
 
   if (error) {
     console.error('Error fetching survey responses:', error);
