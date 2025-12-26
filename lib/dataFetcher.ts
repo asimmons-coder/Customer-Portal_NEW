@@ -190,7 +190,8 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     .from('survey_submissions')
     .select('*')
     .in('survey_type', ['end_of_program', 'feedback', 'first_session'])
-    .not('nps', 'is', null);  // Only get records with NPS to avoid hitting row limits
+    .not('nps', 'is', null)
+    .limit(10000);  // Override default 1000 limit
 
   if (error) {
     console.error('Error fetching survey responses:', error);
