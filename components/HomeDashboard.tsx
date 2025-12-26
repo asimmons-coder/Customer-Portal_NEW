@@ -277,16 +277,15 @@ const HomeDashboard: React.FC = () => {
     );
 
     const cohortSurveys = surveys.filter(s => {
-        if (!s.email) return false;
-        
         // For "All Cohorts", include all surveys
         if (isAll) return true;
 
-        // First try to match by program_title
+        // First try to match by program_title (works for first_session surveys without email)
         const surveyProgram = normalize((s as any).program_title || '');
         if (surveyProgram && surveyProgram === selNorm) return true;
         
-        // Fallback to email matching if no program_title
+        // Fallback to email matching if no program_title match
+        if (!s.email) return false; // Only require email for fallback matching
         if (employees.length === 0) return true; 
         if (enrolledEmployees.length < totalEmployeesCount) {
              // Check if email belongs to this cohort's employees
