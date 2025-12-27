@@ -243,8 +243,10 @@ export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
     return [];
   }
 
-  // Map to WelcomeSurveyEntry format (welcome_survey_baseline has comp_* fields)
+  // Map to WelcomeSurveyEntry format - spread all fields to include sub_* columns
   return data.map((d: any) => ({
+    ...d, // Include ALL fields from database (including sub_* columns)
+    // Override/normalize specific fields
     email: d.email,
     cohort: d.cohort || d.program_title || '',
     company: d.company || d.account || '',
@@ -263,19 +265,6 @@ export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
     account_name: d.account,
     company_id: d.company_id,
     account: d.account,
-    // Competency baseline scores
-    comp_effective_communication: d.comp_effective_communication,
-    comp_persuasion_and_influence: d.comp_persuasion_and_influence,
-    comp_adaptability_and_resilience: d.comp_adaptability_and_resilience,
-    comp_strategic_thinking: d.comp_strategic_thinking,
-    comp_emotional_intelligence: d.comp_emotional_intelligence,
-    comp_building_relationships_at_work: d.comp_building_relationships_at_work,
-    comp_self_confidence_and_imposter_syndrome: d.comp_self_confidence_and_imposter_syndrome,
-    comp_delegation_and_accountability: d.comp_delegation_and_accountability,
-    comp_giving_and_receiving_feedback: d.comp_giving_and_receiving_feedback,
-    comp_effective_planning_and_execution: d.comp_effective_planning_and_execution,
-    comp_change_management: d.comp_change_management,
-    comp_time_management_and_productivity: d.comp_time_management_and_productivity,
   })) as WelcomeSurveyEntry[];
 };
 
