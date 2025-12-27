@@ -74,6 +74,11 @@ const BaselineDashboard: React.FC = () => {
             return programTitle.startsWith('twc');
           }
           
+          // For W&P (and other non-TWC companies), EXCLUDE any TWC programs
+          if (programTitle.startsWith('twc')) {
+            return false;
+          }
+          
           return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
         });
         
@@ -84,6 +89,11 @@ const BaselineDashboard: React.FC = () => {
           
           if (companyBase.includes('wonderful')) {
             return programTitle.startsWith('twc');
+          }
+          
+          // For non-TWC companies, exclude TWC programs
+          if (programTitle.startsWith('twc')) {
+            return false;
           }
           
           return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
@@ -98,6 +108,11 @@ const BaselineDashboard: React.FC = () => {
             return programTitle.startsWith('twc');
           }
           
+          // For non-TWC companies, exclude TWC programs
+          if (programTitle.startsWith('twc')) {
+            return false;
+          }
+          
           return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
         });
         
@@ -108,6 +123,11 @@ const BaselineDashboard: React.FC = () => {
           
           if (companyBase.includes('wonderful')) {
             return programTitle.startsWith('twc');
+          }
+          
+          // For non-TWC companies, exclude TWC programs
+          if (programTitle.startsWith('twc')) {
+            return false;
           }
           
           return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
