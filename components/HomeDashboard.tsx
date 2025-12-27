@@ -442,6 +442,7 @@ const HomeDashboard: React.FC = () => {
     const totalParticipants = cohortBaseline.length;
     
     if (totalParticipants > 0) {
+      // First check for sub_* boolean fields (GROW surveys)
       for (const [key, label] of Object.entries(subTopicMap)) {
         const count = cohortBaseline.filter(e => {
           const val = (e as any)[key];
@@ -451,11 +452,28 @@ const HomeDashboard: React.FC = () => {
           subTopicCounts.push({ topic: label, count, pct: (count / totalParticipants) * 100 });
         }
       }
+      
+      // If no sub_* fields found, check for leader_essentials_topics (comma-separated string)
+      if (subTopicCounts.length === 0) {
+        const leTopicCounts: Record<string, number> = {};
+        cohortBaseline.forEach(e => {
+          const topics = (e as any).leader_essentials_topics;
+          if (topics && typeof topics === 'string') {
+            topics.split(',').map((t: string) => t.trim()).filter(Boolean).forEach((topic: string) => {
+              leTopicCounts[topic] = (leTopicCounts[topic] || 0) + 1;
+            });
+          }
+        });
+        for (const [topic, count] of Object.entries(leTopicCounts)) {
+          subTopicCounts.push({ topic, count, pct: (count / totalParticipants) * 100 });
+        }
+      }
+      
       subTopicCounts.sort((a, b) => b.count - a.count);
     }
     
-    // Use sub-topics if available, otherwise fall back to session themes
-    const topFocusAreas = subTopicCounts.slice(0, 5);
+    // Use sub-topics from welcome survey if available, otherwise use focus_area_selections
+    const topFocusAreasFromSurvey = subTopicCounts.slice(0, 5);
 
     const getQualityQuotes = (data: any[]) => {
       // Only use feedback_learned and feedback_insight (positive feedback)
@@ -547,6 +565,7 @@ const HomeDashboard: React.FC = () => {
         quotes,
         recentSessions,
         topFocusAreas,
+        topFocusAreasFromSurvey,
         selectedCohortName: getCohortDisplayName(selectedCohort),
         sessionsPerEmployee
     };
@@ -732,8 +751,8 @@ const HomeDashboard: React.FC = () => {
                     </div>
                     
                     <div className="space-y-4">
-                        {stats.topFocusAreas && stats.topFocusAreas.length > 0 ? (
-                            stats.topFocusAreas.slice(0, 3).map((area, index) => (
+                        {stats.topFocusAreasFromSurvey && stats.topFocusAreasFromSurvey.length > 0 ? (
+                            stats.topFocusAreasFromSurvey.slice(0, 3).map((area, index) => (
                                 <ThemeBar 
                                     key={area.topic} 
                                     label={area.topic} 
