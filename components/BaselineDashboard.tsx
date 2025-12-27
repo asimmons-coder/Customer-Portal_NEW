@@ -327,6 +327,114 @@ const BaselineDashboard: React.FC = () => {
         .slice(0, 5);
     };
 
+    // Analyze sub-topic selections from welcome survey
+    const analyzeSubTopics = (entries: WelcomeSurveyEntry[]) => {
+      const subTopicMap: Record<string, string> = {
+        sub_active_listening: 'Active Listening',
+        sub_articulating_ideas_clearly: 'Articulating Ideas Clearly',
+        sub_nonverbal_communication: 'Nonverbal Communication',
+        sub_conflict_resolution: 'Conflict Resolution',
+        sub_communication_in_teams: 'Communication in Teams',
+        sub_digital_communication: 'Digital Communication',
+        sub_building_rapport_and_relationships: 'Building Rapport & Relationships',
+        sub_building_credibility_and_trust: 'Building Credibility & Trust',
+        sub_crafting_persuasive_messages: 'Crafting Persuasive Messages',
+        sub_influence_without_authority: 'Influence Without Authority',
+        sub_gaining_buy_in_for_ideas: 'Gaining Buy-in for Ideas',
+        sub_conflict_resolution_using_persuasion: 'Conflict Resolution (Persuasion)',
+        sub_emotional_intelligence_in_persuasion: 'Emotional Intelligence in Persuasion',
+        sub_long_term_influence_strategies: 'Long-term Influence Strategies',
+        sub_embracing_change: 'Embracing Change',
+        sub_developing_a_growth_mindset: 'Developing a Growth Mindset',
+        sub_cultivating_resourcefulness: 'Cultivating Resourcefulness',
+        sub_leading_through_change: 'Leading Through Change',
+        sub_building_a_support_system: 'Building a Support System',
+        sub_building_emotional_resilience: 'Building Emotional Resilience',
+        sub_self_care_and_wellbeing: 'Self-Care & Wellbeing',
+        sub_developing_a_strategic_mindset: 'Developing a Strategic Mindset',
+        sub_strategic_decision_making: 'Strategic Decision Making',
+        sub_aligning_strategy_with_execution: 'Aligning Strategy with Execution',
+        sub_collaborative_strategic_thinking: 'Collaborative Strategic Thinking',
+        sub_innovative_strategic_thinking: 'Innovative Strategic Thinking',
+        sub_personal_strategic_leadership: 'Personal Strategic Leadership',
+        sub_strategic_communication: 'Strategic Communication',
+        sub_understanding_emotional_intelligence: 'Understanding Emotional Intelligence',
+        sub_self_awareness: 'Self Awareness',
+        sub_self_regulation: 'Self Regulation',
+        sub_empathy_and_compassion: 'Empathy & Compassion',
+        sub_enhancing_social_skills: 'Enhancing Social Skills',
+        sub_motivation_and_emotional_drive: 'Motivation & Emotional Drive',
+        sub_developing_empathy_in_leadership: 'Developing Empathy in Leadership',
+        sub_developing_rapport_with_colleagues: 'Developing Rapport with Colleagues',
+        sub_effective_communication_for_relationships: 'Effective Communication for Relationships',
+        sub_building_and_maintaining_trust: 'Building & Maintaining Trust',
+        sub_collaboration_and_teamwork: 'Collaboration & Teamwork',
+        sub_cross_functional_relationships: 'Cross-functional Relationships',
+        sub_relationship_building_with_leaders: 'Relationship Building with Leaders',
+        sub_building_relationships_remote_hybrid: 'Building Relationships (Remote/Hybrid)',
+        sub_identifying_overcoming_limiting_beliefs: 'Overcoming Limiting Beliefs',
+        sub_developing_growth_mindset_confidence: 'Growth Mindset & Confidence',
+        sub_self_awareness_and_confidence: 'Self-Awareness & Confidence',
+        sub_building_confidence_in_communication: 'Confidence in Communication',
+        sub_confidence_in_decision_making: 'Confidence in Decision Making',
+        sub_self_confidence_in_leadership: 'Self-Confidence in Leadership',
+        sub_overcoming_imposter_syndrome: 'Overcoming Imposter Syndrome',
+        sub_assessing_your_delegation_style: 'Assessing Your Delegation Style',
+        sub_effective_delegation_techniques: 'Effective Delegation Techniques',
+        sub_setting_clear_expectations: 'Setting Clear Expectations',
+        sub_monitoring_and_providing_feedback: 'Monitoring & Providing Feedback',
+        sub_building_accountability: 'Building Accountability',
+        sub_handling_challenges_in_delegation: 'Handling Challenges in Delegation',
+        sub_developing_delegation_skills: 'Developing Delegation Skills',
+        sub_developing_a_feedback_mindset: 'Developing a Feedback Mindset',
+        sub_giving_effective_feedback: 'Giving Effective Feedback',
+        sub_receiving_feedback_gracefully: 'Receiving Feedback Gracefully',
+        sub_integrating_feedback_in_daily_routines: 'Integrating Feedback in Daily Routines',
+        sub_handling_difficult_feedback: 'Handling Difficult Feedback',
+        sub_developing_feedback_skills: 'Developing Feedback Skills',
+        sub_feedback_in_team_dynamics: 'Feedback in Team Dynamics',
+        sub_defining_clear_achievable_goals: 'Defining Clear Achievable Goals',
+        sub_creating_an_action_plan: 'Creating an Action Plan',
+        sub_maintaining_motivation_and_focus: 'Maintaining Motivation & Focus',
+        sub_tracking_progress_measuring_success: 'Tracking Progress & Measuring Success',
+        sub_overcoming_obstacles_and_challenges: 'Overcoming Obstacles & Challenges',
+        sub_feedback_and_continuous_improvement: 'Feedback & Continuous Improvement',
+        sub_evaluating_reflecting_on_goals: 'Evaluating & Reflecting on Goals',
+        sub_understanding_change_management: 'Understanding Change Management',
+        sub_preparing_for_change: 'Preparing for Change',
+        sub_implementing_change: 'Implementing Change',
+        sub_supporting_individuals_through_change: 'Supporting Individuals Through Change',
+        sub_building_change_ready_culture: 'Building Change-Ready Culture',
+        sub_leading_through_change_mgmt: 'Leading Through Change',
+        sub_dealing_with_post_change_challenges: 'Dealing with Post-Change Challenges',
+        sub_setting_priorities_and_goals: 'Setting Priorities & Goals',
+        sub_developing_effective_routines_habits: 'Developing Effective Routines & Habits',
+        sub_managing_distractions_interruptions: 'Managing Distractions & Interruptions',
+        sub_utilizing_productivity_tools: 'Utilizing Productivity Tools',
+        sub_managing_workload_avoiding_overcommitment: 'Managing Workload',
+        sub_improving_focus_and_efficiency: 'Improving Focus & Efficiency',
+        sub_balancing_work_and_personal_life: 'Balancing Work & Personal Life',
+      };
+      
+      const counts: Record<string, number> = {};
+      let totalParticipants = entries.length;
+      
+      // Count selections for each sub-topic
+      for (const [key, label] of Object.entries(subTopicMap)) {
+        const count = entries.filter(e => (e as any)[key] === true).length;
+        if (count > 0) {
+          counts[label] = count;
+        }
+      }
+      
+      if (Object.keys(counts).length === 0) return [];
+      
+      return Object.entries(counts)
+        .map(([topic, count]) => ({ topic, count, pct: (count / totalParticipants) * 100 }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8); // Top 8 sub-topics
+    };
+
     return {
       filteredData: filtered,
       cohorts: uniqueCohorts,
@@ -341,7 +449,8 @@ const BaselineDashboard: React.FC = () => {
           experience: getDistribution('years_experience'),
           coaching: getDistribution('previous_coaching')
         },
-        coachingGoals: analyzeCoachingGoals(filtered)
+        coachingGoals: analyzeCoachingGoals(filtered),
+        subTopics: analyzeSubTopics(filtered)
       }
     };
   }, [data, selectedCohort, programConfig, baselineCompetencies]);
@@ -540,6 +649,39 @@ const BaselineDashboard: React.FC = () => {
                         </div>
                         <p className="text-xs text-gray-400 mt-4 italic">
                             Based on {filteredData.filter(d => (d as any).coaching_goals).length} participant responses
+                        </p>
+                    </div>
+                    )}
+
+                    {/* Sub-Topics Focus Areas */}
+                    {stats.subTopics && stats.subTopics.length > 0 && (
+                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Lightbulb className="w-4 h-4 text-boon-purple" /> Top Focus Areas
+                        </h3>
+                        <div className="space-y-4">
+                            {stats.subTopics.map((item, index) => (
+                                <div key={item.topic}>
+                                    <div className="flex justify-between text-sm font-bold mb-2">
+                                        <span className="text-gray-700 flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-boon-purple/10 text-boon-purple text-xs flex items-center justify-center font-black">
+                                                {index + 1}
+                                            </span>
+                                            {item.topic}
+                                        </span>
+                                        <span className="text-gray-400">{item.pct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-boon-purple to-boon-coral rounded-full transition-all duration-500" 
+                                            style={{ width: `${item.pct}%` }} 
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 italic">
+                            Based on {stats.count} participant responses
                         </p>
                     </div>
                     )}
