@@ -197,34 +197,30 @@ const ImpactDashboard: React.FC = () => {
     const hasImpactData = competencyStats.length > 0;
 
 
-    // 5. Baseline Statistics (Fallback View) - USE competency_pre_post pre_scores instead of survey baseline
+    // 5. Baseline Statistics (Fallback View) - USE comp_* fields from welcome_survey_baseline
     let baselineStats: { label: string, avg: number }[] = [];
     if (!hasImpactData) {
-        // Use competency scores with pre_score > 0 (even if post is 0/null)
-        const baselineScores = selectedProgram === 'All Programs'
-            ? scores.filter(s => s.pre > 0)
-            : scores.filter(s => {
-                 const pt = normalize((s as any).program_title || '');
-                 const p = normalize(s.program || '');
-                 return (pt === selNorm || p === selNorm) && s.pre > 0;
+        // Filter baseline data by program
+        const filteredBaseline = selectedProgram === 'All Programs'
+            ? baselineData
+            : baselineData.filter(b => {
+                 const bPt = normalize((b as any).program_title || '');
+                 const bCoh = normalize(b.cohort);
+                 const bComp = normalize(b.company);
+                 return bPt === selNorm || bCoh === selNorm || bComp === selNorm || (bCoh && selNorm.includes(bCoh));
             });
-        
-        // Aggregate by competency name
-        const compBaseMap = new Map<string, { sum: number, count: number }>();
-        baselineScores.forEach(s => {
-            const name = s.competency;
-            if (!compBaseMap.has(name)) {
-                compBaseMap.set(name, { sum: 0, count: 0 });
-            }
-            const entry = compBaseMap.get(name)!;
-            entry.sum += s.pre;
-            entry.count += 1;
-        });
-        
-        baselineStats = Array.from(compBaseMap.entries()).map(([label, data]) => ({
-            label,
-            avg: data.count > 0 ? Math.round((data.sum / data.count) * 10) / 10 : 0
-        }))
+            
+        // Use the COMPETENCY_MAP to extract comp_* fields
+        baselineStats = Object.entries(COMPETENCY_MAP).map(([key, label]) => {
+            const values = filteredBaseline
+                .map(r => Number((r as any)[key]))
+                .filter(v => !isNaN(v) && v > 0);
+            
+            const avg = values.length > 0 
+                ? values.reduce((a,b) => a+b, 0) / values.length 
+                : 0;
+            return { label, avg: Math.round(avg * 10) / 10 };
+        })
         .filter(c => c.avg > 0)
         .sort((a, b) => a.avg - b.avg); // Sort lowest first (opportunities for growth)
     }
