@@ -819,8 +819,9 @@ const HomeDashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* Baseline Snapshot - show when no competency improvement data yet */}
-            {!(stats.participantCount >= 3 && stats.growthPct > 0) && (
+            {/* Baseline Snapshot - show when no competency improvement data yet AND there's baseline data to show */}
+            {!(stats.participantCount >= 3 && stats.growthPct > 0) && 
+             (stats.baseline.competencies.length > 0 || stats.baseline.metrics.satisfaction > 0 || stats.baseline.metrics.productivity > 0 || stats.baseline.metrics.balance > 0) && (
                  <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
