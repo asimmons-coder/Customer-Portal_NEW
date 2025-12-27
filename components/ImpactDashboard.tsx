@@ -144,7 +144,7 @@ const ImpactDashboard: React.FC = () => {
           return pt === selNorm || p === selNorm;
         });
 
-    // 3. Aggregate by Competency (Impact)
+    // 3. Aggregate by Competency (Impact) - only rows with BOTH pre AND post
     const compMap = new Map<string, { name: string, sumPre: number, sumPost: number, count: number }>();
     
     filteredScores.forEach(s => {
@@ -171,7 +171,7 @@ const ImpactDashboard: React.FC = () => {
     }).sort((a, b) => b.pctGrowth - a.pctGrowth);
 
     // 4. Overall Statistics (Impact)
-    const uniqueParticipants = new Set(filteredScores.map(s => s.email)).size;
+    const uniqueParticipants = new Set(filteredScores.filter(s => s.pre > 0 && s.post > 0).map(s => s.email)).size;
     let totalSumPre = 0;
     let totalSumPost = 0;
     let validItemCount = 0;
@@ -197,31 +197,36 @@ const ImpactDashboard: React.FC = () => {
     const hasImpactData = competencyStats.length > 0;
 
 
-    // 5. Baseline Statistics (Fallback View)
+    // 5. Baseline Statistics (Fallback View) - USE competency_pre_post pre_scores instead of survey baseline
     let baselineStats: { label: string, avg: number }[] = [];
     if (!hasImpactData) {
-        const filteredBaseline = selectedProgram === 'All Programs'
-            ? baselineData
-            : baselineData.filter(b => {
-                 const bPt = normalize((b as any).program_title || '');
-                 const bCoh = normalize(b.cohort);
-                 const bComp = normalize(b.company);
-                 // Relaxed matching for baseline data
-                 return bPt === selNorm || bCoh === selNorm || bComp === selNorm || selNorm.includes(bCoh);
+        // Use competency scores with pre_score > 0 (even if post is 0/null)
+        const baselineScores = selectedProgram === 'All Programs'
+            ? scores.filter(s => s.pre > 0)
+            : scores.filter(s => {
+                 const pt = normalize((s as any).program_title || '');
+                 const p = normalize(s.program || '');
+                 return (pt === selNorm || p === selNorm) && s.pre > 0;
             });
-            
-        baselineStats = Object.entries(COMPETENCY_MAP).map(([key, label]) => {
-            const values = filteredBaseline
-                .map(r => Number(r[key]))
-                .filter(v => !isNaN(v) && v > 0);
-            
-            const avg = values.length > 0 
-                ? values.reduce((a,b) => a+b, 0) / values.length 
-                : 0;
-            return { label, avg: Math.round(avg * 10) / 10 };
-        })
+        
+        // Aggregate by competency name
+        const compBaseMap = new Map<string, { sum: number, count: number }>();
+        baselineScores.forEach(s => {
+            const name = s.competency;
+            if (!compBaseMap.has(name)) {
+                compBaseMap.set(name, { sum: 0, count: 0 });
+            }
+            const entry = compBaseMap.get(name)!;
+            entry.sum += s.pre;
+            entry.count += 1;
+        });
+        
+        baselineStats = Array.from(compBaseMap.entries()).map(([label, data]) => ({
+            label,
+            avg: data.count > 0 ? Math.round((data.sum / data.count) * 10) / 10 : 0
+        }))
         .filter(c => c.avg > 0)
-        .sort((a, b) => b.avg - a.avg); // Sort highest baseline first (usually 'strengths') or swap to see gaps
+        .sort((a, b) => a.avg - b.avg); // Sort lowest first (opportunities for growth)
     }
 
     return {
