@@ -366,12 +366,21 @@ const HomeDashboard: React.FC = () => {
         satisfaction: 0, productivity: 0, balance: 0, motivation: 0, inclusion: 0
     };
     if (cohortBaseline.length > 0) {
-        const sum = (key: keyof WelcomeSurveyEntry) => cohortBaseline.reduce((acc, curr) => acc + (Number(curr[key]) || 0), 0);
-        baselineStats.satisfaction = sum('satisfaction') / cohortBaseline.length;
-        baselineStats.productivity = sum('productivity') / cohortBaseline.length;
-        baselineStats.balance = sum('work_life_balance') / cohortBaseline.length;
-        baselineStats.motivation = sum('motivation') / cohortBaseline.length;
-        baselineStats.inclusion = sum('inclusion') / cohortBaseline.length;
+        const getScaledAvg = (key: string) => {
+            const values = cohortBaseline
+                .map(r => Number((r as any)[key]))
+                .filter(v => !isNaN(v) && v > 0);
+            if (values.length === 0) return 0;
+            const avg = values.reduce((a, b) => a + b, 0) / values.length;
+            // Scale 1-5 data to 1-10 if max value <= 5
+            const maxVal = Math.max(...values);
+            return maxVal <= 5 ? avg * 2 : avg;
+        };
+        baselineStats.satisfaction = getScaledAvg('satisfaction');
+        baselineStats.productivity = getScaledAvg('productivity');
+        baselineStats.balance = getScaledAvg('work_life_balance');
+        baselineStats.motivation = getScaledAvg('motivation');
+        baselineStats.inclusion = getScaledAvg('inclusion');
     }
     
     const compFields = [
@@ -401,6 +410,52 @@ const HomeDashboard: React.FC = () => {
     .filter(c => c.avg > 0)
     .sort((a, b) => a.avg - b.avg)
     .slice(0, 5);
+
+    // Analyze sub-topic selections from welcome survey
+    const subTopicMap: Record<string, string> = {
+      sub_active_listening: 'Active Listening',
+      sub_articulating_ideas_clearly: 'Articulating Ideas Clearly',
+      sub_conflict_resolution: 'Conflict Resolution',
+      sub_communication_in_teams: 'Communication in Teams',
+      sub_building_rapport_and_relationships: 'Building Rapport & Relationships',
+      sub_building_credibility_and_trust: 'Building Credibility & Trust',
+      sub_influence_without_authority: 'Influence Without Authority',
+      sub_gaining_buy_in_for_ideas: 'Gaining Buy-in for Ideas',
+      sub_developing_a_growth_mindset: 'Developing a Growth Mindset',
+      sub_leading_through_change: 'Leading Through Change',
+      sub_building_emotional_resilience: 'Building Emotional Resilience',
+      sub_strategic_decision_making: 'Strategic Decision Making',
+      sub_self_awareness: 'Self Awareness',
+      sub_empathy_and_compassion: 'Empathy & Compassion',
+      sub_collaboration_and_teamwork: 'Collaboration & Teamwork',
+      sub_overcoming_imposter_syndrome: 'Overcoming Imposter Syndrome',
+      sub_effective_delegation_techniques: 'Effective Delegation',
+      sub_setting_clear_expectations: 'Setting Clear Expectations',
+      sub_giving_effective_feedback: 'Giving Effective Feedback',
+      sub_receiving_feedback_gracefully: 'Receiving Feedback Gracefully',
+      sub_defining_clear_achievable_goals: 'Defining Clear Goals',
+      sub_managing_distractions_interruptions: 'Managing Distractions',
+      sub_balancing_work_and_personal_life: 'Work-Life Balance',
+    };
+    
+    const subTopicCounts: { topic: string, count: number, pct: number }[] = [];
+    const totalParticipants = cohortBaseline.length;
+    
+    if (totalParticipants > 0) {
+      for (const [key, label] of Object.entries(subTopicMap)) {
+        const count = cohortBaseline.filter(e => {
+          const val = (e as any)[key];
+          return val === true || val === 'true' || val === 1;
+        }).length;
+        if (count > 0) {
+          subTopicCounts.push({ topic: label, count, pct: (count / totalParticipants) * 100 });
+        }
+      }
+      subTopicCounts.sort((a, b) => b.count - a.count);
+    }
+    
+    // Use sub-topics if available, otherwise fall back to session themes
+    const topFocusAreas = subTopicCounts.slice(0, 5);
 
     const getQualityQuotes = (data: any[]) => {
       // Only use feedback_learned and feedback_insight (positive feedback)
@@ -667,19 +722,33 @@ const HomeDashboard: React.FC = () => {
                     )}
                 </div>
             ) : (
-                // NO COMPETENCY DATA YET: Themes Snapshot
+                // NO COMPETENCY DATA YET: Focus Areas from Welcome Survey
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
                            <Lightbulb className="w-5 h-5 text-boon-yellow" /> What Your Team is Working On
                         </h3>
-                        <button onClick={() => navigate('/themes')} className="text-sm font-bold text-boon-blue hover:underline">View all themes →</button>
+                        <button onClick={() => navigate('/baseline')} className="text-sm font-bold text-boon-blue hover:underline">View all themes →</button>
                     </div>
                     
                     <div className="space-y-4">
-                        <ThemeBar label="Leadership Skills" count={stats.themes.counts.leadership} total={stats.themes.total} color="bg-boon-purple" />
-                        <ThemeBar label="Communication" count={stats.themes.counts.comms} total={stats.themes.total} color="bg-boon-coral" />
-                        <ThemeBar label="Mental Well-being" count={stats.themes.counts.mental} total={stats.themes.total} color="bg-boon-blue" />
+                        {stats.topFocusAreas && stats.topFocusAreas.length > 0 ? (
+                            stats.topFocusAreas.slice(0, 3).map((area, index) => (
+                                <ThemeBar 
+                                    key={area.topic} 
+                                    label={area.topic} 
+                                    count={area.count} 
+                                    total={stats.totalEmployeesCount || 1} 
+                                    color={index === 0 ? 'bg-boon-purple' : index === 1 ? 'bg-boon-coral' : 'bg-boon-blue'} 
+                                />
+                            ))
+                        ) : (
+                            <>
+                                <ThemeBar label="Leadership Skills" count={stats.themes.counts.leadership} total={stats.themes.total} color="bg-boon-purple" />
+                                <ThemeBar label="Communication" count={stats.themes.counts.comms} total={stats.themes.total} color="bg-boon-coral" />
+                                <ThemeBar label="Mental Well-being" count={stats.themes.counts.mental} total={stats.themes.total} color="bg-boon-blue" />
+                            </>
+                        )}
                     </div>
                 </div>
             )}
@@ -724,16 +793,19 @@ const HomeDashboard: React.FC = () => {
                         </div>
                     )}
 
+                    {/* Only show wellbeing baseline if at least one metric has data */}
+                    {(stats.baseline.metrics.satisfaction > 0 || stats.baseline.metrics.productivity > 0 || stats.baseline.metrics.balance > 0) && (
                     <div className="pt-6 border-t border-gray-100">
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">Wellbeing Baseline (1-10)</h4>
                         <div className="grid grid-cols-5 gap-2 text-center">
-                            <BaselineMetric label="Satisfac." value={stats.baseline.metrics.satisfaction} benchmark={benchmarks.satisfaction} />
-                            <BaselineMetric label="Product." value={stats.baseline.metrics.productivity} benchmark={benchmarks.productivity} />
-                            <BaselineMetric label="Balance" value={stats.baseline.metrics.balance} benchmark={benchmarks.balance} />
-                            <BaselineMetric label="Motivat." value={stats.baseline.metrics.motivation} benchmark={benchmarks.motivation} />
-                            <BaselineMetric label="Inclusion" value={stats.baseline.metrics.inclusion} benchmark={benchmarks.inclusion} />
+                            {stats.baseline.metrics.satisfaction > 0 && <BaselineMetric label="Satisfac." value={stats.baseline.metrics.satisfaction} benchmark={benchmarks.satisfaction} />}
+                            {stats.baseline.metrics.productivity > 0 && <BaselineMetric label="Product." value={stats.baseline.metrics.productivity} benchmark={benchmarks.productivity} />}
+                            {stats.baseline.metrics.balance > 0 && <BaselineMetric label="Balance" value={stats.baseline.metrics.balance} benchmark={benchmarks.balance} />}
+                            {stats.baseline.metrics.motivation > 0 && <BaselineMetric label="Motivat." value={stats.baseline.metrics.motivation} benchmark={benchmarks.motivation} />}
+                            {stats.baseline.metrics.inclusion > 0 && <BaselineMetric label="Inclusion" value={stats.baseline.metrics.inclusion} benchmark={benchmarks.inclusion} />}
                         </div>
                     </div>
+                    )}
                  </div>
             )}
 
