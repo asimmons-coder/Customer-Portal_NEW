@@ -421,7 +421,10 @@ const BaselineDashboard: React.FC = () => {
       
       // Count selections for each sub-topic
       for (const [key, label] of Object.entries(subTopicMap)) {
-        const count = entries.filter(e => (e as any)[key] === true).length;
+        const count = entries.filter(e => {
+          const val = (e as any)[key];
+          return val === true || val === 'true' || val === 1;
+        }).length;
         if (count > 0) {
           counts[label] = count;
         }
