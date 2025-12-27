@@ -196,7 +196,6 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
       .from('survey_submissions')
       .select('*')
       .in('survey_type', ['end_of_program', 'feedback', 'first_session'])
-      .not('nps', 'is', null)
       .range(from, from + pageSize - 1);
 
     if (error) {
@@ -213,8 +212,13 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     from += pageSize;
   }
 
+  // Filter to records that have NPS OR feedback (don't require NPS for all)
+  const filteredData = allData.filter(d => 
+    d.nps !== null || d.feedback_learned || d.feedback_insight
+  );
+
   // Map to legacy SurveyResponse format
-  return allData.map((d: any) => ({
+  return filteredData.map((d: any) => ({
     email: d.email,
     nps: d.nps,
     coach_satisfaction: d.coach_satisfaction,
