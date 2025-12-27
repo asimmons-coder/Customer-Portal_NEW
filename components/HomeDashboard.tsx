@@ -355,12 +355,34 @@ const HomeDashboard: React.FC = () => {
     }).filter(s => s.pct > 0).sort((a, b) => b.pct - a.pct).slice(0, 3); // Only show positive growth
 
     const themeCounts: Record<string, number> = { mental: 0, leadership: 0, comms: 0 };
+    const subThemeCounts: Record<string, number> = {};
+    
     cohortSessions.forEach(s => {
+       // Count broad themes
        if (s.mental_well_being) themeCounts.mental++;
        if (s.leadership_management_skills) themeCounts.leadership++;
        if (s.communication_skills) themeCounts.comms++;
+       
+       // Parse and count sub-themes from each category
+       const parseSubThemes = (value: any) => {
+         if (!value || typeof value !== 'string' || value === 'true' || value === 'false') return;
+         value.split(/[;,]/).map((t: string) => t.trim()).filter(Boolean).forEach((theme: string) => {
+           subThemeCounts[theme] = (subThemeCounts[theme] || 0) + 1;
+         });
+       };
+       
+       parseSubThemes(s.mental_well_being);
+       parseSubThemes(s.leadership_management_skills);
+       parseSubThemes(s.communication_skills);
     });
     const totalThemes = themeCounts.mental + themeCounts.leadership + themeCounts.comms;
+    
+    // Get top sub-themes sorted by count
+    const topSessionSubThemes = Object.entries(subThemeCounts)
+      .filter(([_, count]) => count > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([topic, count]) => ({ topic, count, pct: (count / cohortSessions.length) * 100 }));
     
     const baselineStats = {
         satisfaction: 0, productivity: 0, balance: 0, motivation: 0, inclusion: 0
@@ -566,6 +588,7 @@ const HomeDashboard: React.FC = () => {
         recentSessions,
         topFocusAreas,
         topFocusAreasFromSurvey,
+        topSessionSubThemes,
         selectedCohortName: getCohortDisplayName(selectedCohort),
         sessionsPerEmployee
     };
@@ -752,6 +775,7 @@ const HomeDashboard: React.FC = () => {
                     
                     <div className="space-y-4">
                         {stats.topFocusAreasFromSurvey && stats.topFocusAreasFromSurvey.length > 0 ? (
+                            // First priority: sub-topics from welcome survey
                             stats.topFocusAreasFromSurvey.slice(0, 3).map((area, index) => (
                                 <ThemeBar 
                                     key={area.topic} 
@@ -761,7 +785,30 @@ const HomeDashboard: React.FC = () => {
                                     color={index === 0 ? 'bg-boon-purple' : index === 1 ? 'bg-boon-coral' : 'bg-boon-blue'} 
                                 />
                             ))
+                        ) : stats.topSessionSubThemes && stats.topSessionSubThemes.length > 0 ? (
+                            // Second priority: sub-themes parsed from session tracking fields
+                            stats.topSessionSubThemes.slice(0, 3).map((area, index) => (
+                                <ThemeBar 
+                                    key={area.topic} 
+                                    label={area.topic} 
+                                    count={area.count} 
+                                    total={stats.completedSessionsCount || 1} 
+                                    color={index === 0 ? 'bg-boon-purple' : index === 1 ? 'bg-boon-coral' : 'bg-boon-blue'} 
+                                />
+                            ))
+                        ) : stats.topFocusAreas && stats.topFocusAreas.length > 0 ? (
+                            // Third priority: granular focus areas from focus_area_selections
+                            stats.topFocusAreas.slice(0, 3).map(([label, count], index) => (
+                                <ThemeBar 
+                                    key={label} 
+                                    label={label} 
+                                    count={count as number} 
+                                    total={stats.totalEmployeesCount || 1} 
+                                    color={index === 0 ? 'bg-boon-purple' : index === 1 ? 'bg-boon-coral' : 'bg-boon-blue'} 
+                                />
+                            ))
                         ) : (
+                            // Fallback: broad session themes
                             <>
                                 <ThemeBar label="Leadership Skills" count={stats.themes.counts.leadership} total={stats.themes.total} color="bg-boon-purple" />
                                 <ThemeBar label="Communication" count={stats.themes.counts.comms} total={stats.themes.total} color="bg-boon-coral" />
