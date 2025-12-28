@@ -150,6 +150,12 @@ const HomeDashboard: React.FC = () => {
         const filteredFocusAreas = focusData.filter(f => matchesCompany(f.account_name, f.program_title));
         const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name, (p as any).program_title));
         
+        console.log('DEBUG filteredConfig:', {
+          filteredConfigCount: filteredConfig.length,
+          filteredConfigTitles: filteredConfig.map(p => (p as any).program_title),
+          filteredConfigSessions: filteredConfig.map(p => ({ title: (p as any).program_title, sessions: (p as any).sessions_per_employee }))
+        });
+        
         setSessions(filteredSessions);
         setCompetencies(filteredCompetencies);
         setSurveys(filteredSurveys);
