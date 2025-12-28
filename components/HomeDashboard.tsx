@@ -253,13 +253,16 @@ const HomeDashboard: React.FC = () => {
     const participantCount = new Set(participantsWithBothScores.map(c => c.email)).size;
     const isCompleted = !isAll && participantCount >= 5;
 
-    // Get Session Count from Config
+    // Get Session Count from Config - match by program_title first, then account_name
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
     const config = programConfig.find(p => 
+        // First try to match by program_title (for cohort-specific config)
+        (p.program_title && normalize(p.program_title) === selNorm) ||
+        // Fallback to account_name match
         (p.account_name && p.account_name === currentAccountName) || 
         (p.account_name && p.account_name === companyName)
     );
-    const sessionsPerEmployee = config?.sessions_per_employee || 12;
+    const sessionsPerEmployee = config?.sessions_per_employee || 5;
 
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
     const progressPct = targetSessions > 0 ? Math.min(100, Math.round((completedSessionsCount / targetSessions) * 100)) : 0;
