@@ -136,7 +136,7 @@ const HomeDashboard: React.FC = () => {
         const filteredSurveys = survData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name, (b as any).program_title));
         const filteredFocusAreas = focusData.filter(f => matchesCompany(f.account_name, f.program_title));
-        const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name));
+        const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name, (p as any).program_title));
         
         setSessions(filteredSessions);
         setCompetencies(filteredCompetencies);
