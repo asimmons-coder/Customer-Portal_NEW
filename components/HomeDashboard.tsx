@@ -255,13 +255,31 @@ const HomeDashboard: React.FC = () => {
 
     // Get Session Count from Config - match by program_title first, then account_name
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
-    const config = programConfig.find(p => 
-        // First try to match by program_title (for cohort-specific config)
-        (p.program_title && normalize(p.program_title) === selNorm) ||
-        // Fallback to account_name match
+    
+    console.log('DEBUG programConfig lookup:', {
+      selectedCohort,
+      selNorm,
+      programConfigCount: programConfig.length,
+      programConfigTitles: programConfig.map(p => p.program_title),
+    });
+    
+    const config = programConfig.find(p => {
+      const match = (p.program_title && normalize(p.program_title) === selNorm) ||
         (p.account_name && p.account_name === currentAccountName) || 
-        (p.account_name && p.account_name === companyName)
-    );
+        (p.account_name && p.account_name === companyName);
+      if (p.program_title?.toLowerCase().includes('standard')) {
+        console.log('DEBUG config check:', { 
+          configTitle: p.program_title, 
+          normalizedConfigTitle: normalize(p.program_title),
+          selNorm,
+          match,
+          sessionsPerEmployee: p.sessions_per_employee
+        });
+      }
+      return match;
+    });
+    
+    console.log('DEBUG found config:', config);
     const sessionsPerEmployee = config?.sessions_per_employee || 5;
 
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
