@@ -281,21 +281,27 @@ const HomeDashboard: React.FC = () => {
       programConfigTitles: programConfig.map(p => p.program_title),
     });
     
-    const config = programConfig.find(p => {
-      const match = (p.program_title && normalize(p.program_title) === selNorm) ||
-        (p.account_name && p.account_name === currentAccountName) || 
-        (p.account_name && p.account_name === companyName);
-      if (p.program_title?.toLowerCase().includes('standard')) {
-        console.log('DEBUG config check:', { 
-          configTitle: p.program_title, 
-          normalizedConfigTitle: normalize(p.program_title),
-          selNorm,
-          match,
-          sessionsPerEmployee: p.sessions_per_employee
-        });
-      }
-      return match;
+    // First try exact program_title match
+    let config = programConfig.find(p => {
+      const normalizedTitle = normalize(p.program_title || '');
+      const isMatch = normalizedTitle === selNorm;
+      console.log('DEBUG config find:', { 
+        title: p.program_title, 
+        normalizedTitle, 
+        selNorm, 
+        isMatch,
+        sessions: p.sessions_per_employee 
+      });
+      return isMatch;
     });
+    
+    // Only fall back to account_name match if no program_title match and looking at "All Cohorts"
+    if (!config && isAll) {
+      config = programConfig.find(p => 
+        (p.account_name && p.account_name === currentAccountName) || 
+        (p.account_name && p.account_name === companyName)
+      );
+    }
     
     console.log('DEBUG found config:', config);
     const sessionsPerEmployee = config?.sessions_per_employee || 5;
