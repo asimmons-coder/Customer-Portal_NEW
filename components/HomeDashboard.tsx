@@ -129,6 +129,18 @@ const HomeDashboard: React.FC = () => {
           return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
         };
         
+        // DEBUG: Log company and config data
+        console.log('DEBUG company filtering:', {
+          company,
+          companyBase: company?.split(' - ')[0].toLowerCase(),
+          configDataCount: configData.length,
+          configSample: configData.slice(0, 3).map(p => ({ 
+            account_name: (p as any).account_name, 
+            program_title: (p as any).program_title,
+            sessions_per_employee: (p as any).sessions_per_employee
+          }))
+        });
+        
         // Filter all data by company
         const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
