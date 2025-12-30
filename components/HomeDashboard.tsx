@@ -256,9 +256,6 @@ const HomeDashboard: React.FC = () => {
     // Get Session Count from Config - match by program_title first, then account_name
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
     
-    // Get Session Count from Config - match by program_title first, then account_name
-    const currentAccountName = companyName.split(' - ')[0];
-    
     // First try exact program_title match
     let config = programConfig.find(p => {
       const normalizedTitle = normalize(p.program_title || '');
