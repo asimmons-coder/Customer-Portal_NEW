@@ -129,18 +129,6 @@ const HomeDashboard: React.FC = () => {
           return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
         };
         
-        // DEBUG: Log company and config data
-        console.log('DEBUG company filtering:', {
-          company,
-          companyBase: company?.split(' - ')[0].toLowerCase(),
-          configDataCount: configData.length,
-          configSample: configData.slice(0, 3).map(p => ({ 
-            account_name: (p as any).account_name, 
-            program_title: (p as any).program_title,
-            sessions_per_employee: (p as any).sessions_per_employee
-          }))
-        });
-        
         // Filter all data by company
         const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
@@ -149,12 +137,6 @@ const HomeDashboard: React.FC = () => {
         const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name, (b as any).program_title));
         const filteredFocusAreas = focusData.filter(f => matchesCompany(f.account_name, f.program_title));
         const filteredConfig = configData.filter(p => matchesCompany((p as any).account_name, (p as any).program_title));
-        
-        console.log('DEBUG filteredConfig:', {
-          filteredConfigCount: filteredConfig.length,
-          filteredConfigTitles: filteredConfig.map(p => (p as any).program_title),
-          filteredConfigSessions: filteredConfig.map(p => ({ title: (p as any).program_title, sessions: (p as any).sessions_per_employee }))
-        });
         
         setSessions(filteredSessions);
         setCompetencies(filteredCompetencies);
@@ -274,25 +256,13 @@ const HomeDashboard: React.FC = () => {
     // Get Session Count from Config - match by program_title first, then account_name
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
     
-    console.log('DEBUG programConfig lookup:', {
-      selectedCohort,
-      selNorm,
-      programConfigCount: programConfig.length,
-      programConfigTitles: programConfig.map(p => p.program_title),
-    });
+    // Get Session Count from Config - match by program_title first, then account_name
+    const currentAccountName = companyName.split(' - ')[0];
     
     // First try exact program_title match
     let config = programConfig.find(p => {
       const normalizedTitle = normalize(p.program_title || '');
-      const isMatch = normalizedTitle === selNorm;
-      console.log('DEBUG config find:', { 
-        title: p.program_title, 
-        normalizedTitle, 
-        selNorm, 
-        isMatch,
-        sessions: p.sessions_per_employee 
-      });
-      return isMatch;
+      return normalizedTitle === selNorm;
     });
     
     // Only fall back to account_name match if no program_title match and looking at "All Cohorts"
@@ -303,7 +273,6 @@ const HomeDashboard: React.FC = () => {
       );
     }
     
-    console.log('DEBUG found config:', config);
     const sessionsPerEmployee = config?.sessions_per_employee || 5;
 
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
