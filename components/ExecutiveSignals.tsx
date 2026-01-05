@@ -97,37 +97,9 @@ const ExecutiveSignals: React.FC<ExecutiveSignalsProps> = ({
   const apiKey = useMemo(() => getApiKey(), []);
 
   useEffect(() => {
-    const fetchProgramConfig = async () => {
-      if (!accountName) return;
-      
-      try {
-        let { data: configData, error: configError } = await supabase
-          .from('program_config')
-          .select('*')
-          .eq('account_name', accountName)
-          .single();
-        
-        if (configError || !configData) {
-          const { data: fuzzyData } = await supabase
-            .from('program_config')
-            .select('*')
-            .ilike('account_name', `%${accountName}%`)
-            .limit(1);
-          
-          if (fuzzyData && fuzzyData.length > 0) {
-            configData = fuzzyData[0];
-          }
-        }
-        
-        if (configData) {
-          setProgramConfig(configData);
-        }
-      } catch (err) {
-        console.error('Error fetching program config:', err);
-      }
-    };
-
-    fetchProgramConfig();
+    // NOTE: program_config query removed due to RLS/API key issues
+    // ExecutiveSignals will work without program config data
+    console.log('ExecutiveSignals: program_config query disabled');
   }, [accountName]);
 
   useEffect(() => {

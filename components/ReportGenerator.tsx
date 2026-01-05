@@ -48,16 +48,16 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   const handleOpen = async () => {
     setIsOpen(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const company = session?.user?.app_metadata?.company || '';
-      
+      // Get programs from session_tracking instead of program_config (RLS issues)
       const { data } = await supabase
-        .from('program_config')
-        .select('program_title')
-        .ilike('account_name', `%${company.split(' - ')[0]}%`);
+        .from('session_tracking')
+        .select('program_title');
       
       if (data) {
-        setPrograms(data.map(p => p.program_title).filter(Boolean));
+        const uniquePrograms = [...new Set(
+          data.map(p => p.program_title).filter(Boolean)
+        )] as string[];
+        setPrograms(uniquePrograms.sort());
       }
     } catch (err) {
       console.error('Error fetching programs:', err);

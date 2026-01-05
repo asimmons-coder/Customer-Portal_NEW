@@ -62,29 +62,16 @@ const EmployeeDashboard: React.FC = () => {
         const company = session?.user?.app_metadata?.company || '';
         setCompanyName(company);
 
-        // Fetch employees and program config
-        const [empResult, configResult] = await Promise.all([
-          supabase
-            .from('employee_manager')
-            .select('*')
-            .neq('company_email', 'asimmons@boon-health.com')
-            .order('last_name', { ascending: true }),
-          supabase
-            .from('program_config')
-            .select('salesforce_program_id, program_title')
-        ]);
+        // Fetch employees (program_config removed due to RLS issues - use coaching_program from employee records)
+        const empResult = await supabase
+          .from('employee_manager')
+          .select('*')
+          .neq('company_email', 'asimmons@boon-health.com')
+          .order('last_name', { ascending: true });
 
         if (empResult.error) throw empResult.error;
         
-        // Create lookup map for program_title
-        const programTitleMap = new Map<string, string>();
-        (configResult.data || []).forEach(p => {
-          if (p.salesforce_program_id && p.program_title) {
-            programTitleMap.set(p.salesforce_program_id, p.program_title);
-          }
-        });
-        
-        // Filter by company and add program_title
+        // Filter by company and map program_title from existing fields
         const companyBase = company.split(' - ')[0].toLowerCase();
         const filteredData = (empResult.data || [])
           .filter(e => {
@@ -93,10 +80,8 @@ const EmployeeDashboard: React.FC = () => {
           })
           .map(e => ({
             ...e,
-            // Use salesforce lookup first, then fall back to coaching_program
-            program_title: e.salesforce_program_id 
-              ? programTitleMap.get(e.salesforce_program_id) 
-              : (e.coaching_program || undefined),
+            // Use coaching_program as program_title
+            program_title: e.coaching_program || e.program || undefined,
             program: e.coaching_program || e.program
           }));
         
