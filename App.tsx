@@ -91,27 +91,21 @@ const MainPortalLayout: React.FC = () => {
           Sentry.setTag('company', company);
         }
 
-        // Fetch client logo - clean company name to avoid URL encoding issues
+        // Fetch client logo
         const companyBase = company
           .split(' - ')[0]
-          .replace(/\s+(SCALE|GROW|EXEC)$/i, '')  // Remove program type suffix
-          .replace(/&/g, '')  // Remove ampersands that cause URL issues
+          .replace(/\s+(SCALE|GROW|EXEC)$/i, '')
           .trim();
         
-        if (companyBase && companyBase.length > 2) {
-          try {
-            const { data: logoData } = await supabase
-              .from('company_logos')
-              .select('logo_url')
-              .ilike('company_name', `%${companyBase}%`)
-              .single();
-            
-            if (logoData?.logo_url) {
-              setClientLogo(logoData.logo_url);
-            }
-          } catch (logoErr) {
-            // Logo fetch is non-critical, just log and continue
-            console.log('Could not fetch company logo:', logoErr);
+        if (companyBase) {
+          const { data: logoData, error: logoError } = await supabase
+            .from('company_logos')
+            .select('logo_url')
+            .ilike('company_name', `%${companyBase}%`)
+            .maybeSingle();  // Use maybeSingle() instead of single() - returns null instead of error if not found
+          
+          if (logoData?.logo_url) {
+            setClientLogo(logoData.logo_url);
           }
         }
 
