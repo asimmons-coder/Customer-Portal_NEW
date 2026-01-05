@@ -78,6 +78,8 @@ const MainPortalLayout: React.FC = () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const company = session?.user?.app_metadata?.company || '';
+        const programTypeFromMeta = session?.user?.app_metadata?.program_type || null;
+        
         setCompanyName(company);
 
         // Set Sentry user context for better error tracking
@@ -101,17 +103,10 @@ const MainPortalLayout: React.FC = () => {
           setClientLogo(logoData.logo_url);
         }
 
-        // Fetch program type from program_config
-        const { data: configData, error: configError } = await supabase
-          .from('program_config')
-          .select('program_type')
-          .ilike('account_name', `%${company.split(' - ')[0]}%`)
-          .limit(1)
-          .single();
-
-        if (configData?.program_type) {
-          setProgramType(configData.program_type as 'GROW' | 'Scale' | 'Exec');
-          Sentry.setTag('program_type', configData.program_type);
+        // Get program type from JWT app_metadata (no DB query needed - avoids RLS issues)
+        if (programTypeFromMeta) {
+          setProgramType(programTypeFromMeta as 'GROW' | 'Scale' | 'Exec');
+          Sentry.setTag('program_type', programTypeFromMeta);
         } else {
           // Fallback: check if company name contains Scale
           if (company.toUpperCase().includes('SCALE')) {
