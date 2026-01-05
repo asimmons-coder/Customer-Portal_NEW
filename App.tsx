@@ -202,7 +202,7 @@ const MainPortalLayout: React.FC = () => {
   }
 
   // Scale-specific navigation
-  const isScale = programType === 'Scale';
+  const isScale = programType?.toUpperCase() === 'SCALE';
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-boon-bg font-sans text-boon-dark">
