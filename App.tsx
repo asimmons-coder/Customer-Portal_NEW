@@ -91,16 +91,28 @@ const MainPortalLayout: React.FC = () => {
           Sentry.setTag('company', company);
         }
 
-        // Fetch client logo
-        const companyBase = company.split(' - ')[0];
-        const { data: logoData } = await supabase
-          .from('company_logos')
-          .select('logo_url')
-          .ilike('company_name', `%${companyBase}%`)
-          .single();
+        // Fetch client logo - clean company name to avoid URL encoding issues
+        const companyBase = company
+          .split(' - ')[0]
+          .replace(/\s+(SCALE|GROW|EXEC)$/i, '')  // Remove program type suffix
+          .replace(/&/g, '')  // Remove ampersands that cause URL issues
+          .trim();
         
-        if (logoData?.logo_url) {
-          setClientLogo(logoData.logo_url);
+        if (companyBase && companyBase.length > 2) {
+          try {
+            const { data: logoData } = await supabase
+              .from('company_logos')
+              .select('logo_url')
+              .ilike('company_name', `%${companyBase}%`)
+              .single();
+            
+            if (logoData?.logo_url) {
+              setClientLogo(logoData.logo_url);
+            }
+          } catch (logoErr) {
+            // Logo fetch is non-critical, just log and continue
+            console.log('Could not fetch company logo:', logoErr);
+          }
         }
 
         // Get program type from JWT app_metadata (no DB query needed - avoids RLS issues)
