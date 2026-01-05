@@ -102,7 +102,13 @@ const ScaleDashboard: React.FC = () => {
     if (loading) return null;
 
     const normalize = (s: string) => s?.toLowerCase().trim() || '';
-    const currentAccount = normalize(companyName.split(' - ')[0]);
+    // Remove SCALE/GROW/EXEC suffix from company name for matching
+    const currentAccount = normalize(
+      companyName
+        .split(' - ')[0]
+        .replace(/\s+(SCALE|GROW|EXEC)$/i, '')
+        .trim()
+    );
 
     // Debug logging
     console.log('Session Debug:', {
