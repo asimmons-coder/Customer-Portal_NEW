@@ -8,8 +8,7 @@ import {
   getEmployeeRoster,
   getWelcomeSurveyData,
   getProgramConfig,
-  getFocusAreaSelections,
-  getEffectiveCompany
+  getFocusAreaSelections
 } from '../lib/dataFetcher';
 import { 
   SessionWithEmployee, 
@@ -69,14 +68,12 @@ const HomeDashboard: React.FC = () => {
       try {
         setLoading(true);
         
-        // Get effective company (checks admin override first)
-        const { company, programType } = await getEffectiveCompany();
+        // Fetch Auth Session for Company Name and First Name
+        const { data: { session } } = await supabase.auth.getSession();
+        const company = session?.user?.app_metadata?.company || '';
         if (company) {
           setCompanyName(company);
         }
-        
-        // Fetch first name from auth session
-        const { data: { session } } = await supabase.auth.getSession();
         if (session?.user?.app_metadata?.first_name || session?.user?.user_metadata?.first_name) {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
         }
