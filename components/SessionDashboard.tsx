@@ -484,9 +484,9 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         const sessionDate = new Date(session.session_date);
         const isPast = sessionDate < new Date();
 
-        if (statusRaw.includes('no show') || statusRaw.includes('noshow') || statusRaw.includes('late cancel')) {
+        if (statusRaw.includes('no show') || statusRaw.includes('noshow') || statusRaw.includes('late cancel') || statusRaw.includes('client no show')) {
           entry.noshow += 1;
-        } else if (statusRaw.includes('completed') || (statusRaw === '' && isPast)) {
+        } else if (statusRaw.includes('completed') || (statusRaw === '' && isPast) || (statusRaw === 'no label' && isPast)) {
           entry.completed += 1;
         } else {
           entry.scheduled += 1;
@@ -817,7 +817,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                   onClick={() => handleSort('noshow')}
                 >
                   <div className="flex items-center justify-center gap-1">
-                    No-Shows
+                    Missed
                     {sortField === 'noshow' && (
                       <span className="text-boon-blue">{sortDirection === 'asc' ? '↑' : '↓'}</span>
                     )}
@@ -998,9 +998,10 @@ const SimpleTrendChart = ({ sessions, filterType, filterValue, programFilter }: 
       const sessionDate = new Date(s.session_date);
       const isPast = sessionDate < new Date();
       
-      const isNoShow = status.includes('no show') || status.includes('noshow') || status.includes('late cancel');
+      const isNoShow = status.includes('no show') || status.includes('noshow') || status.includes('late cancel') || status.includes('client no show');
+      const isCompleted = status.includes('completed') || (status === '' && isPast) || (status === 'no label' && isPast);
 
-      if (!isNoShow && (status.includes('completed') || (status === '' && isPast))) {
+      if (!isNoShow && isCompleted) {
          const key = `${sessionDate.getFullYear()}-${String(sessionDate.getMonth() + 1).padStart(2, '0')}`;
          monthlyCounts[key] = (monthlyCounts[key] || 0) + 1;
       }
@@ -1190,18 +1191,20 @@ const EmployeeDetailModal = ({
   // Recalculate counts based on filtered sessions
   const completedCount = displaySessions.filter(s => {
     const statusLower = (s.status || '').toLowerCase();
-    return statusLower.includes('completed') || (!s.status && new Date(s.session_date) < new Date());
+    const isPast = new Date(s.session_date) < new Date();
+    return statusLower.includes('completed') || (!s.status && isPast) || (statusLower === 'no label' && isPast);
   }).length;
   
   const noShowCount = displaySessions.filter(s => {
     const statusLower = (s.status || '').toLowerCase();
-    return statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
+    return statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel') || statusLower.includes('client no show');
   }).length;
   
   const scheduledCount = displaySessions.filter(s => {
     const statusLower = (s.status || '').toLowerCase();
-    const isCompleted = statusLower.includes('completed') || (!s.status && new Date(s.session_date) < new Date());
-    const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
+    const isPast = new Date(s.session_date) < new Date();
+    const isCompleted = statusLower.includes('completed') || (!s.status && isPast) || (statusLower === 'no label' && isPast);
+    const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel') || statusLower.includes('client no show');
     return !isCompleted && !isNoShow;
   }).length;
 
@@ -1252,7 +1255,7 @@ const EmployeeDetailModal = ({
                   <div className="text-xl sm:text-2xl font-black text-gray-700">{scheduledCount}</div>
               </div>
               <div className="p-3 sm:p-4 text-center">
-                  <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">No Shows</div>
+                  <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Missed</div>
                   <div className="text-xl sm:text-2xl font-black text-boon-red">{noShowCount}</div>
               </div>
           </div>
@@ -1268,8 +1271,10 @@ const EmployeeDetailModal = ({
                <div className="space-y-3">
                   {displaySessions.map((session) => {
                      const statusLower = (session.status || '').toLowerCase();
-                     const isCompleted = statusLower.includes('completed') || (!session.status && new Date(session.session_date) < new Date());
-                     const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
+                     const sessionDate = new Date(session.session_date);
+                     const isPast = sessionDate < new Date();
+                     const isCompleted = statusLower.includes('completed') || (!session.status && isPast) || (statusLower === 'no label' && isPast);
+                     const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel') || statusLower.includes('client no show');
                      
                      return (
                        <div key={session.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">

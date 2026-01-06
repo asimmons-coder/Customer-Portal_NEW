@@ -233,11 +233,21 @@ const HomeDashboard: React.FC = () => {
 
     // --- Metrics Calculation ---
     
+    // Count completed sessions (for display)
     const completedSessionsCount = cohortSessions.filter(s => {
         const status = (s.status || '').toLowerCase();
         const isPast = new Date(s.session_date) < new Date();
-        return !status.includes('no show') && !status.includes('cancel') && (status.includes('completed') || (!status && isPast));
+        return !status.includes('no show') && !status.includes('cancel') && (status.includes('completed') || (!status && isPast) || (status === 'no label' && isPast));
     }).length;
+    
+    // Count no-shows/late cancels (these count as "used" sessions for progress)
+    const noShowSessionsCount = cohortSessions.filter(s => {
+        const status = (s.status || '').toLowerCase();
+        return status.includes('no show') || status.includes('noshow') || status.includes('late cancel') || status.includes('client no show');
+    }).length;
+    
+    // Sessions used = completed + no-shows (for progress calculation)
+    const sessionsUsedCount = completedSessionsCount + noShowSessionsCount;
     
     const scheduledSessionsCount = cohortSessions.length;
 
@@ -307,7 +317,7 @@ const HomeDashboard: React.FC = () => {
     });
 
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
-    const progressPct = targetSessions > 0 ? Math.min(100, Math.round((completedSessionsCount / targetSessions) * 100)) : 0;
+    const progressPct = targetSessions > 0 ? Math.min(100, Math.round((sessionsUsedCount / targetSessions) * 100)) : 0;
 
     // Calculate growth from competency scores (only using rows with BOTH pre AND post)
     const totalPre = participantsWithBothScores.reduce((acc, curr) => acc + curr.pre, 0);
@@ -617,6 +627,7 @@ const HomeDashboard: React.FC = () => {
     return {
         isCompleted,
         completedSessionsCount,
+        sessionsUsedCount,
         scheduledSessionsCount,
         targetSessions,
         totalEmployeesCount,
@@ -710,7 +721,7 @@ const HomeDashboard: React.FC = () => {
             </div>
             <p className="text-xl md:text-2xl text-gray-600 font-medium">through the program</p>
             <p className="text-sm text-gray-400 mt-6 font-medium">
-                {stats.completedSessionsCount} of {stats.targetSessions} expected sessions completed ({stats.totalEmployeesCount} employees × {stats.sessionsPerEmployee} sessions)
+                {stats.sessionsUsedCount} of {stats.targetSessions} expected sessions used ({stats.totalEmployeesCount} employees × {stats.sessionsPerEmployee} sessions)
             </p>
         </div>
       )}
