@@ -183,7 +183,7 @@ export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
 
 /**
  * Fetches survey responses with NPS/CSAT data.
- * Includes end_of_program, feedback (every-other-session), and first_session surveys.
+ * Includes end_of_program, feedback (every-other-session), first_session, AND touchpoint surveys.
  */
 export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
   // Supabase has a 1000 row default limit. We need to paginate to get all records.
@@ -195,7 +195,7 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     const { data, error } = await supabase
       .from('survey_submissions')
       .select('*')
-      .in('survey_type', ['end_of_program', 'feedback', 'first_session'])
+      .in('survey_type', ['end_of_program', 'feedback', 'first_session', 'touchpoint'])
       .range(from, from + pageSize - 1);
 
     if (error) {
@@ -212,9 +212,14 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     from += pageSize;
   }
 
-  // Filter to records that have NPS OR feedback (don't require NPS for all)
+  // Filter to records that have NPS OR feedback OR wellbeing data
   const filteredData = allData.filter(d => 
-    d.nps !== null || d.feedback_learned || d.feedback_insight
+    d.nps !== null || 
+    d.feedback_learned || 
+    d.feedback_insight ||
+    d.wellbeing_satisfaction !== null ||
+    d.wellbeing_productivity !== null ||
+    d.wellbeing_balance !== null
   );
 
   // Map to legacy SurveyResponse format
@@ -229,6 +234,10 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
     account_name: d.account_name,
     company_id: d.company_id,
     survey_type: d.survey_type,
+    // Wellbeing fields for impact calculations
+    wellbeing_satisfaction: d.wellbeing_satisfaction,
+    wellbeing_productivity: d.wellbeing_productivity,
+    wellbeing_balance: d.wellbeing_balance,
   })) as SurveyResponse[];
 };
 
