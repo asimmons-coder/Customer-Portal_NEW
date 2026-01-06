@@ -70,7 +70,23 @@ const HomeDashboard: React.FC = () => {
         
         // Fetch Auth Session for Company Name and First Name
         const { data: { session } } = await supabase.auth.getSession();
-        const company = session?.user?.app_metadata?.company || '';
+        const email = session?.user?.email || '';
+        const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+        const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+        
+        let company = session?.user?.app_metadata?.company || '';
+        
+        // Check for admin override
+        if (isAdmin) {
+          try {
+            const stored = localStorage.getItem('boon_admin_company_override');
+            if (stored) {
+              const override = JSON.parse(stored);
+              company = override.name;
+            }
+          } catch {}
+        }
+        
         if (company) {
           setCompanyName(company);
         }

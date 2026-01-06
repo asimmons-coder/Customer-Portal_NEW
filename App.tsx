@@ -27,7 +27,8 @@ import {
   Home,
   TrendingUp,
   ClipboardList,
-  Zap
+  Zap,
+  Building2
 } from 'lucide-react';
 
 // --- Sentry Initialization ---
@@ -53,6 +54,120 @@ const getDisplayName = (program: string): string => {
   return programDisplayNames[program] || program;
 };
 
+// --- Admin Company Switcher ---
+const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+const ADMIN_COMPANY_KEY = 'boon_admin_company_override';
+
+const AdminCompanySwitcher: React.FC<{ 
+  currentCompany: string;
+  onCompanyChange: (company: string, programType: 'GROW' | 'Scale') => void;
+}> = ({ currentCompany, onCompanyChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [companies, setCompanies] = useState<{name: string, programType: 'GROW' | 'Scale'}[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    // Fetch distinct account_names from session_tracking (the actual values used for filtering)
+    const fetchCompanies = async () => {
+      const { data } = await supabase
+        .from('session_tracking')
+        .select('account_name, program_title')
+        .order('account_name');
+      
+      if (data) {
+        // Get unique account_names with their program type
+        const uniqueMap = new Map<string, 'GROW' | 'Scale'>();
+        data.forEach(row => {
+          if (row.account_name && !uniqueMap.has(row.account_name)) {
+            const isScale = row.program_title?.toUpperCase().includes('SCALE') || 
+                           row.account_name?.toUpperCase().includes('SCALE');
+            uniqueMap.set(row.account_name, isScale ? 'Scale' : 'GROW');
+          }
+        });
+        
+        const companyList = Array.from(uniqueMap.entries()).map(([name, programType]) => ({
+          name,
+          programType
+        }));
+        setCompanies(companyList.sort((a, b) => a.name.localeCompare(b.name)));
+      }
+    };
+    fetchCompanies();
+  }, []);
+
+  const filteredCompanies = companies.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelect = (company: {name: string, programType: 'GROW' | 'Scale'}) => {
+    localStorage.setItem(ADMIN_COMPANY_KEY, JSON.stringify(company));
+    onCompanyChange(company.name, company.programType);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleClear = () => {
+    localStorage.removeItem(ADMIN_COMPANY_KEY);
+    window.location.reload();
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold hover:bg-amber-200 transition"
+      >
+        <Building2 size={14} />
+        <span className="max-w-[120px] truncate">{currentCompany || 'Switch Company'}</span>
+        <ChevronDown size={14} className={isOpen ? 'rotate-180' : ''} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 w-80 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              type="text"
+              placeholder="Search companies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filteredCompanies.slice(0, 30).map((company) => (
+              <button
+                key={company.name}
+                onClick={() => handleSelect(company)}
+                className={`w-full px-4 py-2 text-left text-sm hover:bg-amber-50 flex items-center justify-between ${
+                  currentCompany === company.name ? 'bg-amber-100 font-bold' : ''
+                }`}
+              >
+                <span className="truncate">{company.name}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  company.programType === 'Scale' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {company.programType}
+                </span>
+              </button>
+            ))}
+          </div>
+          {localStorage.getItem(ADMIN_COMPANY_KEY) && (
+            <div className="p-2 border-t border-gray-100">
+              <button
+                onClick={handleClear}
+                className="w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 rounded-lg font-medium"
+              >
+                Clear Override & Use Default
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // --- Main Portal Layout with Dynamic Program Tabs ---
 const MainPortalLayout: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline'>('dashboard');
@@ -68,17 +183,43 @@ const MainPortalLayout: React.FC = () => {
   const [programs, setPrograms] = useState<string[]>([]);
   
   const [companyName, setCompanyName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [clientLogo, setClientLogo] = useState<string | null>(null);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
+
+  const handleCompanyChange = (newCompany: string, newProgramType: 'GROW' | 'Scale') => {
+    setCompanyName(newCompany);
+    setProgramType(newProgramType);
+    window.location.reload();
+  };
 
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const company = session?.user?.app_metadata?.company || '';
-        const programTypeFromMeta = session?.user?.app_metadata?.program_type || null;
+        const email = session?.user?.email || '';
+        setUserEmail(email);
+        
+        const adminUser = ADMIN_EMAILS.includes(email?.toLowerCase());
+        setIsAdmin(adminUser);
+        
+        // Check for admin override
+        let company = session?.user?.app_metadata?.company || '';
+        let programTypeFromMeta = session?.user?.app_metadata?.program_type || null;
+        
+        if (adminUser) {
+          try {
+            const stored = localStorage.getItem(ADMIN_COMPANY_KEY);
+            if (stored) {
+              const override = JSON.parse(stored);
+              company = override.name;
+              programTypeFromMeta = override.programType;
+            }
+          } catch {}
+        }
         
         setCompanyName(company);
 
@@ -259,6 +400,12 @@ const MainPortalLayout: React.FC = () => {
               </>
             )}
           </div>
+          {isAdmin && (
+            <AdminCompanySwitcher 
+              currentCompany={companyName}
+              onCompanyChange={handleCompanyChange}
+            />
+          )}
         </div>
 
         <nav className="flex-1 p-4 space-y-1 mt-2 overflow-y-auto custom-scrollbar">
