@@ -35,6 +35,13 @@ const getDisplayName = (program: string): string => {
   return programDisplayNames[program] || program;
 };
 
+// --- Helper to check if session is canceled (should be excluded) ---
+const isCanceledSession = (status: string): boolean => {
+  const statusLower = (status || '').toLowerCase();
+  // "Canceled" sessions should be hidden, but "Late Cancel" should show as no-show
+  return statusLower === 'canceled' || statusLower === 'cancelled';
+};
+
 interface SessionDashboardProps {
   filterType: 'program' | 'cohort' | 'all';
   filterValue: string;
@@ -111,8 +118,12 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         };
         
         if (mounted) {
-          // Filter by company
-          const filteredSessions = sessionsData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+          // Filter by company AND exclude canceled sessions
+          const filteredSessions = sessionsData.filter(s => {
+            const matchesCompanyFilter = matchesCompany((s as any).account_name, (s as any).program_title);
+            const isNotCanceled = !isCanceledSession(s.status || '');
+            return matchesCompanyFilter && isNotCanceled;
+          });
           const filteredEmployees = rosterData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
           const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
           
@@ -416,7 +427,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       }
     });
 
-    // 2. Process Sessions
+    // 2. Process Sessions (already filtered to exclude canceled in loadData)
     sessions.forEach(session => {
       const emp = session.employee_manager;
       const name = emp?.full_name || emp?.first_name 
@@ -1171,9 +1182,28 @@ const EmployeeDetailModal = ({
   sessions: SessionWithEmployee[], 
   onClose: () => void 
 }) => {
-  const sortedSessions = [...sessions].sort((a, b) => 
-    new Date(b.session_date).getTime() - new Date(a.session_date).getTime()
-  );
+  // Filter out canceled sessions and sort by date
+  const displaySessions = sessions
+    .filter(s => !isCanceledSession(s.status || ''))
+    .sort((a, b) => new Date(b.session_date).getTime() - new Date(a.session_date).getTime());
+
+  // Recalculate counts based on filtered sessions
+  const completedCount = displaySessions.filter(s => {
+    const statusLower = (s.status || '').toLowerCase();
+    return statusLower.includes('completed') || (!s.status && new Date(s.session_date) < new Date());
+  }).length;
+  
+  const noShowCount = displaySessions.filter(s => {
+    const statusLower = (s.status || '').toLowerCase();
+    return statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
+  }).length;
+  
+  const scheduledCount = displaySessions.filter(s => {
+    const statusLower = (s.status || '').toLowerCase();
+    const isCompleted = statusLower.includes('completed') || (!s.status && new Date(s.session_date) < new Date());
+    const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
+    return !isCompleted && !isNoShow;
+  }).length;
 
   return (
     <div 
@@ -1211,19 +1241,19 @@ const EmployeeDetailModal = ({
              </button>
           </div>
           
-          {/* KPI Row inside Modal */}
+          {/* KPI Row inside Modal - use recalculated counts */}
           <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100 bg-white">
               <div className="p-3 sm:p-4 text-center">
                   <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Completed</div>
-                  <div className="text-xl sm:text-2xl font-black text-boon-green">{employee.completed}</div>
+                  <div className="text-xl sm:text-2xl font-black text-boon-green">{completedCount}</div>
               </div>
               <div className="p-3 sm:p-4 text-center">
                   <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Scheduled</div>
-                  <div className="text-xl sm:text-2xl font-black text-gray-700">{employee.scheduled}</div>
+                  <div className="text-xl sm:text-2xl font-black text-gray-700">{scheduledCount}</div>
               </div>
               <div className="p-3 sm:p-4 text-center">
                   <div className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">No Shows</div>
-                  <div className="text-xl sm:text-2xl font-black text-boon-red">{employee.noshow}</div>
+                  <div className="text-xl sm:text-2xl font-black text-boon-red">{noShowCount}</div>
               </div>
           </div>
           
@@ -1234,12 +1264,12 @@ const EmployeeDetailModal = ({
                Session History
              </h3>
              
-             {sortedSessions.length > 0 ? (
+             {displaySessions.length > 0 ? (
                <div className="space-y-3">
-                  {sortedSessions.map((session) => {
+                  {displaySessions.map((session) => {
                      const statusLower = (session.status || '').toLowerCase();
                      const isCompleted = statusLower.includes('completed') || (!session.status && new Date(session.session_date) < new Date());
-                     const isNoShow = statusLower.includes('no show') || statusLower.includes('late cancel');
+                     const isNoShow = statusLower.includes('no show') || statusLower.includes('noshow') || statusLower.includes('late cancel');
                      
                      return (
                        <div key={session.id} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow group">
