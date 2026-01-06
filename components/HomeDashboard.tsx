@@ -111,7 +111,10 @@ const HomeDashboard: React.FC = () => {
         
         // Helper to check if a value matches the company (case-insensitive, partial match)
         const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
-          if (!company) return false;
+          if (!company) {
+            console.log('DEBUG matchesCompany: company is empty');
+            return false;
+          }
           const companyBase = company.split(' - ')[0].toLowerCase();
           
           // Check if program_title starts with TWC (for Wonderful Company)
@@ -127,10 +130,16 @@ const HomeDashboard: React.FC = () => {
             return true;
           }
           
-          return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+          const matches = valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
+          return matches;
         };
         
         // Filter all data by company
+        const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
+        console.log('DEBUG filtering - company:', company, 'sessData count:', sessData.length, 'filteredSessions count:', filteredSessions.length);
+        if (sessData.length > 0 && filteredSessions.length === 0) {
+          console.log('DEBUG sample session account_names:', sessData.slice(0, 5).map((s: any) => s.account_name));
+        }
         const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
         const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account_name, (c as any).program_title));
