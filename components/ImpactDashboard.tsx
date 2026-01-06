@@ -210,7 +210,7 @@ const ImpactDashboard: React.FC = () => {
     const topCompetencies = competencyStats.slice(0, 2).map(c => c.name);
     const interpretationText = getInterpretation(topCompetencies);
 
-    const hasImpactData = competencyStats.length > 0 && overallStats.uniqueParticipants >= 3;
+    const hasImpactData = competencyStats.length > 0 && uniqueParticipants >= 3;
 
 
     // 5. Baseline Statistics (Fallback View) - USE comp_* fields from welcome_survey_baseline
