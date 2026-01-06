@@ -311,17 +311,24 @@ export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow
 };
 
 // ============================================
-// CONFIG & BENCHMARK QUERIES (unchanged)
+// CONFIG & BENCHMARK QUERIES
 // ============================================
 
 /**
- * Fetches program configuration.
- * NOTE: Disabled due to RLS/API key issues with program_config table.
- * If needed, add program_type to user's app_metadata instead.
+ * Fetches program configuration from program_config table.
  */
 export const getProgramConfig = async (): Promise<ProgramConfig[]> => {
-  console.warn('getProgramConfig is disabled due to RLS issues with program_config table');
-  return [];
+  const { data, error } = await supabase
+    .from('program_config')
+    .select('*');
+
+  if (error) {
+    console.error('Error fetching program config:', error);
+    Sentry.captureException(error, { tags: { query: 'getProgramConfig' } });
+    return [];
+  }
+
+  return data as ProgramConfig[];
 };
 
 /**
