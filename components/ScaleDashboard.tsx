@@ -713,37 +713,27 @@ const ScaleTestimonialsSection: React.FC<{
   setExpandedTheme: (theme: string | null) => void;
 }> = ({ surveys, companyName, expandedTheme, setExpandedTheme }) => {
   
-  // Theme categories with keywords for matching
+  // SCALE-specific theme categories
   const themeCategories = [
     { 
-      name: 'Leadership & Management', 
-      keywords: ['lead', 'manage', 'team', 'delegate', 'direct report', 'supervise', 'mentor', 'leadership'],
-      icon: '👔'
+      name: 'Coach Praise', 
+      keywords: ['wonderful', 'great coach', 'exceptional', 'amazing', 'the best', 'appreciate', 'thankful', 'grateful', 'lucky to have', 'love my coach', 'fantastic'],
+      icon: '⭐'
     },
     { 
-      name: 'Communication', 
-      keywords: ['communicat', 'listen', 'speak', 'present', 'conversation', 'feedback', 'difficult conversation'],
-      icon: '💬'
+      name: 'Program Impact', 
+      keywords: ['helpful', 'positive effect', 'feel better', 'helped me', 'valuable', 'beneficial', 'worth', 'recommend', 'glad i joined', 'great experience'],
+      icon: '✨'
     },
     { 
-      name: 'Personal Growth', 
-      keywords: ['confidence', 'growth', 'skill', 'learn', 'improve', 'develop', 'strength', 'awareness', 'mindset'],
-      icon: '🌱'
+      name: 'Personal Breakthroughs', 
+      keywords: ['confident', 'open up', 'think bigger', 'challenged me', 'tools', 'skills', 'perspective', 'mindset', 'growth', 'breakthrough', 'realized', 'learned'],
+      icon: '🚀'
     },
     { 
-      name: 'Work-Life Balance', 
-      keywords: ['balance', 'stress', 'wellbeing', 'wellness', 'boundaries', 'self-care', 'burnout', 'anxiety'],
-      icon: '⚖️'
-    },
-    { 
-      name: 'Career & Goals', 
-      keywords: ['career', 'goal', 'promotion', 'role', 'job', 'opportunity', 'transition', 'next step'],
-      icon: '🎯'
-    },
-    { 
-      name: 'Productivity', 
-      keywords: ['productiv', 'priorit', 'time management', 'organiz', 'efficien', 'focus', 'procrastinat'],
-      icon: '⚡'
+      name: 'Session Feedback', 
+      keywords: ['longer', 'shorter', 'more often', '30 min', '45 min', 'more time', 'increase the time', 'frequency', 'duration'],
+      icon: '⏱️'
     }
   ];
   
