@@ -140,7 +140,6 @@ const HomeDashboard: React.FC = () => {
         if (sessData.length > 0 && filteredSessions.length === 0) {
           console.log('DEBUG sample session account_names:', sessData.slice(0, 5).map((s: any) => s.account_name));
         }
-        const filteredSessions = sessData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
         const filteredEmployees = empData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
         const filteredCompetencies = compData.filter(c => matchesCompany((c as any).account_name, (c as any).program_title));
         const filteredSurveys = survData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
