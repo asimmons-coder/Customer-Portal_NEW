@@ -760,13 +760,12 @@ const ScaleTestimonialsSection: React.FC<{
   // Get all feedback text from touchpoint and feedback surveys
   const allFeedback = cohortSurveys
     .flatMap(s => [
-      (s as any).feedback_learned,
-      (s as any).feedback_insight,
-      (s as any).feedback_experience,
+      (s as any).feedback_suggestions,
       (s as any).feedback_coach_description,
-      (s as any).open_feedback
+      (s as any).feedback_learned,
+      (s as any).feedback_insight
     ])
-    .filter(f => f && typeof f === 'string' && f.length > 30);
+    .filter(f => f && typeof f === 'string' && f.trim().length > 20);
   
   if (allFeedback.length === 0) return null;
   
