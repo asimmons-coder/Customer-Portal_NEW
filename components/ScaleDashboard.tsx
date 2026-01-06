@@ -716,11 +716,6 @@ const ScaleTestimonialsSection: React.FC<{
   // SCALE-specific theme categories
   const themeCategories = [
     { 
-      name: 'Coach Praise', 
-      keywords: ['wonderful', 'great coach', 'exceptional', 'amazing', 'the best', 'appreciate', 'thankful', 'grateful', 'lucky to have', 'love my coach', 'fantastic'],
-      icon: '⭐'
-    },
-    { 
       name: 'Program Impact', 
       keywords: ['helpful', 'positive effect', 'feel better', 'helped me', 'valuable', 'beneficial', 'worth', 'recommend', 'glad i joined', 'great experience'],
       icon: '✨'
@@ -729,6 +724,11 @@ const ScaleTestimonialsSection: React.FC<{
       name: 'Personal Breakthroughs', 
       keywords: ['confident', 'open up', 'think bigger', 'challenged me', 'tools', 'skills', 'perspective', 'mindset', 'growth', 'breakthrough', 'realized', 'learned'],
       icon: '🚀'
+    },
+    { 
+      name: 'Coach Praise', 
+      keywords: ['wonderful', 'great coach', 'exceptional', 'amazing', 'the best', 'appreciate', 'thankful', 'grateful', 'lucky to have', 'love my coach', 'fantastic'],
+      icon: '⭐'
     },
     { 
       name: 'Session Feedback', 
