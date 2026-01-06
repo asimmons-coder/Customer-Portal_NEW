@@ -503,9 +503,7 @@ const WellbeingGaugeWithBenchmark = ({ label, value, benchmark }: { label: strin
     </div>
   );
 };
-
 const DemographicCard = ({ icon, title, data, total }: {
-    const DemographicCard = ({ icon, title, data, total }: {
   icon: React.ReactNode;
   title: string;
   data: Record<string, number>;
