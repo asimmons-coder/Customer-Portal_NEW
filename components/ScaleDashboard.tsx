@@ -423,7 +423,7 @@ const ScaleDashboard: React.FC = () => {
       {(m.impact.satisfaction.baseline || m.impact.productivity.baseline || m.impact.workLifeBalance.baseline) && (
         <div className="bg-gradient-to-r from-boon-purple/5 to-boon-blue/5 p-6 rounded-2xl border border-boon-purple/10">
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-boon-purple" /> Wellbeing Impact
+            <Sparkles className="w-4 h-4 text-boon-purple" /> Impact
           </h3>
           <p className="text-sm text-gray-500 mb-6">Comparing baseline (welcome survey) to post-session feedback</p>
           
