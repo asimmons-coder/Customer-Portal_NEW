@@ -93,6 +93,7 @@ const HomeDashboard: React.FC = () => {
         console.log('DEBUG W&P surveys:', survData.filter(s => s.account_name?.includes('W&P')));
         console.log('DEBUG survey program_titles:', [...new Set(survData.map(s => s.program_title))].slice(0, 20));
         console.log('DEBUG first_session surveys:', survData.filter(s => s.survey_type === 'first_session'));
+        console.log('DEBUG programConfig:', configData);
         
         // Set benchmarks
         const benchmarkRows = benchmarkData.data || [];
@@ -253,7 +254,7 @@ const HomeDashboard: React.FC = () => {
     const participantCount = new Set(participantsWithBothScores.map(c => c.email)).size;
     const isCompleted = !isAll && participantCount >= 5;
 
-    // Get Session Count from Config - match by program_title first, then account_name
+    // Get Session Count from Config - IMPROVED MATCHING LOGIC
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
     
     // First try exact program_title match
@@ -262,15 +263,48 @@ const HomeDashboard: React.FC = () => {
       return normalizedTitle === selNorm;
     });
     
-    // Only fall back to account_name match if no program_title match and looking at "All Cohorts"
+    // If no exact match and looking at "All Cohorts", try flexible account_name matching
     if (!config && isAll) {
-      config = programConfig.find(p => 
-        (p.account_name && p.account_name === currentAccountName) || 
-        (p.account_name && p.account_name === companyName)
-      );
+      config = programConfig.find(p => {
+        const configAccount = normalize(p.account_name || '');
+        const currentNorm = normalize(currentAccountName);
+        const companyNorm = normalize(companyName);
+        return configAccount === currentNorm || 
+               configAccount === companyNorm ||
+               configAccount.includes(currentNorm) ||
+               currentNorm.includes(configAccount) ||
+               companyNorm.includes(configAccount) ||
+               configAccount.includes(companyNorm.split(' - ')[0]);
+      });
+    }
+    
+    // Final fallback: if there's only one program_config for this company, use it
+    if (!config && programConfig.length === 1) {
+      config = programConfig[0];
+    }
+    
+    // Additional fallback: if still no config, try to find any config that partially matches
+    if (!config && programConfig.length > 0) {
+      const currentNorm = normalize(currentAccountName);
+      config = programConfig.find(p => {
+        const configAccount = normalize(p.account_name || '');
+        // Check if either contains the other (partial match)
+        return configAccount.split(' ')[0] === currentNorm.split(' ')[0];
+      });
     }
     
     const sessionsPerEmployee = config?.sessions_per_employee || 5;
+    
+    // Debug log for config matching
+    console.log('DEBUG config matching:', {
+      selectedCohort,
+      companyName,
+      currentAccountName,
+      programConfigCount: programConfig.length,
+      programConfigs: programConfig.map(p => ({ account_name: p.account_name, program_title: p.program_title, sessions: p.sessions_per_employee })),
+      matchedConfig: config ? { account_name: config.account_name, sessions: config.sessions_per_employee } : null,
+      sessionsPerEmployee
+    });
 
     const targetSessions = totalEmployeesCount * sessionsPerEmployee;
     const progressPct = targetSessions > 0 ? Math.min(100, Math.round((completedSessionsCount / targetSessions) * 100)) : 0;

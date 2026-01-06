@@ -56,6 +56,7 @@ const FOCUS_AREA_LABELS: Record<string, string> = {
   focus_work_stress: 'Managing Work Stress',
   focus_coping_stress_anxiety: 'Coping with Stress & Anxiety',
   focus_work_life_balance: 'Work-Life Balance',
+  focus_work_life_balance: 'Work-Life Balance',
   focus_work_relationships: 'Work Relationships',
   focus_relationships_self_others: 'Relationships (Self & Others)',
   focus_realizing_potential: 'Realizing Potential',
@@ -85,8 +86,9 @@ const ScaleBaselineDashboard: React.FC = () => {
         setCompanyName(company);
 
         // Fetch survey data
+        // Fix: Cast to unknown then ScaleWelcomeSurvey[] to handle potential type mismatch
         const data = await getWelcomeSurveyScaleData();
-        setSurveyData(data as ScaleWelcomeSurvey[]);
+        setSurveyData(data as unknown as ScaleWelcomeSurvey[]);
 
         // Fetch benchmarks
         const { data: benchmarkData, error: benchmarkError } = await supabase
@@ -166,7 +168,8 @@ const ScaleBaselineDashboard: React.FC = () => {
     // Previous coaching - handle numeric (0, 1) or boolean values
     const previousCoachingCounts: Record<string, number> = { 'Yes': 0, 'No': 0 };
     surveyData.forEach(s => {
-      const val = s.previous_coaching;
+      // Fix: cast to any to allow loose comparison of legacy data types
+      const val: any = s.previous_coaching;
       // Check for truthy value (1, 1.0, true, "1", "yes", etc.)
       if (val === 1 || val === 1.0 || val === true || val === '1' || val === 'yes' || val === 'Yes') {
         previousCoachingCounts['Yes']++;
@@ -497,40 +500,4 @@ const WellbeingGaugeWithBenchmark = ({ label, value, benchmark }: { label: strin
           <span>{isAbove ? '+' : ''}{diff?.toFixed(1)} vs Boon avg</span>
         </div>
       )}
-    </div>
-  );
-};
-
-const DemographicCard = ({ icon, title, data, total }: any) => {
-  const sortedData = Object.entries(data)
-    .sort((a, b) => (b[1] as number) - (a[1] as number));
-
-  return (
-    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-      <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-        {icon} {title}
-      </h3>
-      <div className="space-y-3">
-        {sortedData.map(([key, count]) => {
-          const pct = ((count as number) / total) * 100;
-          return (
-            <div key={key}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-medium text-gray-600">{key}</span>
-                <span className="text-xs text-gray-500">{count} ({pct.toFixed(0)}%)</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-1.5">
-                <div
-                  className="h-1.5 rounded-full bg-boon-coral"
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-export default ScaleBaselineDashboard;
+    

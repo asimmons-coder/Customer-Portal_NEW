@@ -40,7 +40,8 @@ Sentry.init({
   tracesSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-  environment: import.meta.env.MODE, // 'development' or 'production'
+  // Fix: Use casting to any for import.meta to avoid TS error in some environments
+  environment: (import.meta as any).env?.MODE || 'development', // 'development' or 'production'
 });
 
 // --- Program Display Name Mapping ---
