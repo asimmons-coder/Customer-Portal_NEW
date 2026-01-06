@@ -16,6 +16,56 @@ import {
 } from '../types';
 
 // ============================================
+// ADMIN COMPANY OVERRIDE HELPER
+// ============================================
+
+const ADMIN_COMPANY_KEY = 'boon_admin_company_override';
+const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+
+/**
+ * Gets the effective company for data filtering.
+ * Checks for admin override first, then falls back to auth metadata.
+ */
+export const getEffectiveCompany = async (): Promise<{ company: string; programType: 'GROW' | 'Scale' }> => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const email = session?.user?.email || '';
+  
+  // Check admin override first
+  if (ADMIN_EMAILS.includes(email?.toLowerCase())) {
+    try {
+      const stored = localStorage.getItem(ADMIN_COMPANY_KEY);
+      if (stored) {
+        const override = JSON.parse(stored);
+        return { company: override.name, programType: override.programType };
+      }
+    } catch {}
+  }
+  
+  // Fall back to auth metadata
+  const company = session?.user?.app_metadata?.company || '';
+  const programType = session?.user?.app_metadata?.program_type || 
+    (company.toUpperCase().includes('SCALE') ? 'Scale' : 'GROW');
+  
+  return { company, programType: programType as 'GROW' | 'Scale' };
+};
+
+/**
+ * Synchronous version - checks localStorage only (for use in components that already have session)
+ */
+export const getEffectiveCompanySync = (authCompany: string, userEmail: string): string => {
+  if (ADMIN_EMAILS.includes(userEmail?.toLowerCase())) {
+    try {
+      const stored = localStorage.getItem(ADMIN_COMPANY_KEY);
+      if (stored) {
+        const override = JSON.parse(stored);
+        return override.name;
+      }
+    } catch {}
+  }
+  return authCompany;
+};
+
+// ============================================
 // EMPLOYEE & SESSION QUERIES (unchanged)
 // ============================================
 

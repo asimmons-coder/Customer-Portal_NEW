@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getDashboardSessions, getEmployeeRoster, getSurveyResponses } from '../lib/dataFetcher';
+import { getDashboardSessions, getEmployeeRoster, getSurveyResponses, getEffectiveCompany } from '../lib/dataFetcher';
 import { SessionWithEmployee, Employee, SurveyResponse } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -86,9 +86,8 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       try {
         setLoading(true);
         
-        // Get company from auth
-        const { data: { session } } = await supabase.auth.getSession();
-        const company = session?.user?.app_metadata?.company || '';
+        // Get effective company (checks admin override first)
+        const { company } = await getEffectiveCompany();
         
         const [sessionsData, rosterData, surveyData] = await Promise.all([
           getDashboardSessions(),
