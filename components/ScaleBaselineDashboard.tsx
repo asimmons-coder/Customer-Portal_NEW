@@ -500,4 +500,37 @@ const WellbeingGaugeWithBenchmark = ({ label, value, benchmark }: { label: strin
           <span>{isAbove ? '+' : ''}{diff?.toFixed(1)} vs Boon avg</span>
         </div>
       )}
-    
+    const DemographicCard = ({ icon, title, data, total }: {
+  icon: React.ReactNode;
+  title: string;
+  data: Record<string, number>;
+  total: number;
+}) => {
+  const sortedData = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  
+  return (
+    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+      <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+        {icon} {title}
+      </h4>
+      <div className="space-y-3">
+        {sortedData.map(([label, count]) => (
+          <div key={label}>
+            <div className="flex justify-between items-center mb-1">
+              <span className="text-xs font-medium text-gray-600">{label}</span>
+              <span className="text-xs font-bold text-gray-800">{((count / total) * 100).toFixed(0)}%</span>
+            </div>
+            <div className="w-full bg-gray-100 rounded-full h-1.5">
+              <div
+                className="h-1.5 rounded-full bg-boon-blue"
+                style={{ width: `${(count / total) * 100}%` }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default ScaleBaselineDashboard;
