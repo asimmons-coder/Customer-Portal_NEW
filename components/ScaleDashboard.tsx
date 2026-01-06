@@ -248,7 +248,7 @@ const ScaleDashboard: React.FC = () => {
       monthSessions.forEach(s => {
         const empName = normalize(s.employee_name || '');
         const employee = employeeLookup.get(empName);
-        const jobTitle = employee?.job_title || employee?.company_role;
+        const jobTitle = employee?.company_role || employee?.job_title;
         const role = categorizeRole(jobTitle);
         roles[role] = (roles[role] || 0) + 1;
       });
