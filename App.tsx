@@ -27,7 +27,8 @@ import {
   Home,
   TrendingUp,
   ClipboardList,
-  Zap
+  Zap,
+  Building2
 } from 'lucide-react';
 
 // --- Sentry Initialization ---
@@ -40,8 +41,7 @@ Sentry.init({
   tracesSampleRate: 1.0,
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-  // Fix: Use casting to any for import.meta to avoid TS error in some environments
-  environment: (import.meta as any).env?.MODE || 'development', // 'development' or 'production'
+  environment: import.meta.env.MODE, // 'development' or 'production'
 });
 
 // --- Program Display Name Mapping ---
@@ -52,6 +52,119 @@ const programDisplayNames: Record<string, string> = {
 
 const getDisplayName = (program: string): string => {
   return programDisplayNames[program] || program;
+};
+
+// --- Admin Company Switcher ---
+const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+const ADMIN_COMPANY_KEY = 'boon_admin_company_override';
+
+const AdminCompanySwitcher: React.FC<{ 
+  userEmail: string; 
+  currentCompany: string;
+  onCompanyChange: (company: string, programType: 'GROW' | 'Scale') => void;
+}> = ({ userEmail, currentCompany, onCompanyChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [companies, setCompanies] = useState<{name: string, programType: 'GROW' | 'Scale'}[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  const isAdmin = ADMIN_EMAILS.includes(userEmail?.toLowerCase());
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    
+    // Fetch companies from program_config
+    const fetchCompanies = async () => {
+      const { data } = await supabase
+        .from('program_config')
+        .select('account_name, program_title')
+        .order('account_name');
+      
+      if (data) {
+        const companyList = data.map(c => ({
+          name: c.account_name,
+          programType: (c.program_title?.toUpperCase().includes('SCALE') ? 'Scale' : 'GROW') as 'GROW' | 'Scale'
+        }));
+        // Dedupe by name
+        const unique = Array.from(new Map(companyList.map(c => [c.name, c])).values());
+        setCompanies(unique);
+      }
+    };
+    fetchCompanies();
+  }, [isAdmin]);
+
+  if (!isAdmin) return null;
+
+  const filteredCompanies = companies.filter(c => 
+    c.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelect = (company: {name: string, programType: 'GROW' | 'Scale'}) => {
+    localStorage.setItem(ADMIN_COMPANY_KEY, JSON.stringify(company));
+    onCompanyChange(company.name, company.programType);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  const handleClear = () => {
+    localStorage.removeItem(ADMIN_COMPANY_KEY);
+    window.location.reload();
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 px-3 py-2 bg-amber-100 text-amber-800 rounded-lg text-xs font-bold hover:bg-amber-200 transition"
+      >
+        <Building2 size={14} />
+        <span className="max-w-[120px] truncate">{currentCompany || 'Switch Company'}</span>
+        <ChevronDown size={14} className={isOpen ? 'rotate-180' : ''} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input
+              type="text"
+              placeholder="Search companies..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300"
+              autoFocus
+            />
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {filteredCompanies.slice(0, 20).map((company) => (
+              <button
+                key={company.name}
+                onClick={() => handleSelect(company)}
+                className={`w-full px-4 py-2 text-left text-sm hover:bg-amber-50 flex items-center justify-between ${
+                  currentCompany === company.name ? 'bg-amber-100 font-bold' : ''
+                }`}
+              >
+                <span className="truncate">{company.name}</span>
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                  company.programType === 'Scale' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {company.programType}
+                </span>
+              </button>
+            ))}
+          </div>
+          {localStorage.getItem(ADMIN_COMPANY_KEY) && (
+            <div className="p-2 border-t border-gray-100">
+              <button
+                onClick={handleClear}
+                className="w-full px-3 py-2 text-xs text-red-600 hover:bg-red-50 rounded-lg font-medium"
+              >
+                Clear Override & Reload
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 // --- Main Portal Layout with Dynamic Program Tabs ---
@@ -69,19 +182,63 @@ const MainPortalLayout: React.FC = () => {
   const [programs, setPrograms] = useState<string[]>([]);
   
   const [companyName, setCompanyName] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [clientLogo, setClientLogo] = useState<string | null>(null);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const navigate = useNavigate();
 
+  // Check for admin company override
+  const getAdminOverride = (): {name: string, programType: 'GROW' | 'Scale'} | null => {
+    try {
+      const stored = localStorage.getItem(ADMIN_COMPANY_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const handleAdminCompanyChange = (company: string, newProgramType: 'GROW' | 'Scale') => {
+    setCompanyName(company);
+    setProgramType(newProgramType);
+    // Reload to refetch all data with new company context
+    window.location.reload();
+  };
+
   useEffect(() => {
     const fetchMetadata = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        const company = session?.user?.app_metadata?.company || '';
-        const programTypeFromMeta = session?.user?.app_metadata?.program_type || null;
+        const email = session?.user?.email || '';
+        setUserEmail(email);
+        
+        // Check for admin override first
+        const adminOverride = getAdminOverride();
+        const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+        
+        let company: string;
+        let programTypeValue: 'GROW' | 'Scale' | 'Exec';
+        
+        if (isAdmin && adminOverride) {
+          company = adminOverride.name;
+          programTypeValue = adminOverride.programType;
+        } else {
+          company = session?.user?.app_metadata?.company || '';
+          const programTypeFromMeta = session?.user?.app_metadata?.program_type || null;
+          programTypeValue = programTypeFromMeta as 'GROW' | 'Scale' | 'Exec';
+          
+          // Fallback: check if company name contains Scale
+          if (!programTypeValue) {
+            if (company.toUpperCase().includes('SCALE')) {
+              programTypeValue = 'Scale';
+            } else {
+              programTypeValue = 'GROW';
+            }
+          }
+        }
         
         setCompanyName(company);
+        setProgramType(programTypeValue);
 
         // Set Sentry user context for better error tracking
         if (session?.user) {
@@ -90,6 +247,7 @@ const MainPortalLayout: React.FC = () => {
             email: session.user.email,
           });
           Sentry.setTag('company', company);
+          Sentry.setTag('program_type', programTypeValue);
         }
 
         // Fetch client logo
@@ -103,35 +261,26 @@ const MainPortalLayout: React.FC = () => {
             .from('company_logos')
             .select('logo_url')
             .ilike('company_name', `%${companyBase}%`)
-            .maybeSingle();  // Use maybeSingle() instead of single() - returns null instead of error if not found
+            .maybeSingle();
           
           if (logoData?.logo_url) {
             setClientLogo(logoData.logo_url);
           }
         }
 
-        // Get program type from JWT app_metadata (no DB query needed - avoids RLS issues)
-        if (programTypeFromMeta) {
-          setProgramType(programTypeFromMeta as 'GROW' | 'Scale' | 'Exec');
-          Sentry.setTag('program_type', programTypeFromMeta);
-        } else {
-          // Fallback: check if company name contains Scale
-          if (company.toUpperCase().includes('SCALE')) {
-            setProgramType('Scale');
-            Sentry.setTag('program_type', 'Scale');
-          } else {
-            setProgramType('GROW');
-            Sentry.setTag('program_type', 'GROW');
-          }
-        }
         setProgramTypeLoading(false);
 
-        // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
+        // Fetch program titles for sidebar - use account_name filter for admin override
         let foundPrograms: string[] = [];
         try {
-          const { data: sessionPrograms, error: sessionError } = await supabase
-            .from('session_tracking')
-            .select('program_title');
+          let query = supabase.from('session_tracking').select('program_title');
+          
+          // If admin with override, filter by account_name
+          if (isAdmin && adminOverride) {
+            query = query.ilike('account_name', `%${adminOverride.name.split(' - ')[0]}%`);
+          }
+          
+          const { data: sessionPrograms, error: sessionError } = await query;
 
           console.log('Session programs query:', { sessionPrograms, sessionError });
 
@@ -142,7 +291,6 @@ const MainPortalLayout: React.FC = () => {
             )] as string[];
             console.log('Unique programs found from sessions:', foundPrograms);
             
-            // Set programs immediately when found
             if (foundPrograms.length > 0) {
               console.log('Setting programs state to:', foundPrograms.sort());
               setPrograms(foundPrograms.sort());
@@ -151,9 +299,6 @@ const MainPortalLayout: React.FC = () => {
         } catch (progErr) {
           console.error('Error fetching programs from sessions:', progErr);
         }
-        
-        // Note: program_config fallback removed due to RLS/API key issues
-        // Programs are now sourced only from session_tracking table
       } catch (err) {
         console.error('Error fetching metadata:', err);
         Sentry.captureException(err);
@@ -242,7 +387,7 @@ const MainPortalLayout: React.FC = () => {
         ${mobileMenuOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
       `}>
         <div className="hidden lg:block p-6 border-b border-gray-100">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mb-3">
             <img 
               src="https://res.cloudinary.com/djbo6r080/image/upload/v1764863780/Wordmark_Blue_16_aw7lvc.png" 
               alt="Boon Logo" 
@@ -259,6 +404,11 @@ const MainPortalLayout: React.FC = () => {
               </>
             )}
           </div>
+          <AdminCompanySwitcher 
+            userEmail={userEmail}
+            currentCompany={companyName}
+            onCompanyChange={handleAdminCompanyChange}
+          />
         </div>
 
         <nav className="flex-1 p-4 space-y-1 mt-2 overflow-y-auto custom-scrollbar">
