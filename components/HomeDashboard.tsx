@@ -381,6 +381,16 @@ const HomeDashboard: React.FC = () => {
     const totalPost = participantsWithBothScores.reduce((acc, curr) => acc + curr.post, 0);
     const growthPct = totalPre > 0 ? ((totalPost - totalPre) / totalPre) * 100 : 0;
 
+    // DEBUG - growth calculation
+    console.log('DEBUG growth:', {
+      selectedCohort,
+      totalPre,
+      totalPost,
+      growthPct,
+      participantCount,
+      sampleScores: participantsWithBothScores.slice(0, 3).map(c => ({ email: c.email, pre: c.pre, post: c.post }))
+    });
+
     const utilizationRate = 100; 
 
     // Filter surveys by program_title (for accurate NPS/CSAT per cohort)
