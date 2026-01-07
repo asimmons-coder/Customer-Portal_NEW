@@ -525,19 +525,17 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   // --- Filtering and Sorting Displayed Employees ---
   const filteredData = useMemo(() => {
     let result = aggregatedStats.filter(stat => {
+      // Only show employees who have at least one session (completed, scheduled, or no-show)
+      if (stat.total === 0) return false;
+      
       const matchesSearch = stat.name.toLowerCase().includes(searchTerm.toLowerCase());
       
       // Program filter (local dropdown)
       const matchesProgram = programFilter === 'All' || stat.program === programFilter;
       
-      let matchesContext = false;
-      if (stat.total > 0) {
-        matchesContext = true;
-      } else {
-        if (filterType === 'all') matchesContext = true;
-        else if (filterType === 'program') matchesContext = (stat.program === filterValue);
-        else if (filterType === 'cohort') matchesContext = (stat.cohort === filterValue);
-      }
+      let matchesContext = true;
+      if (filterType === 'program') matchesContext = (stat.program === filterValue);
+      else if (filterType === 'cohort') matchesContext = (stat.cohort === filterValue);
 
       return matchesSearch && matchesContext && matchesProgram;
     });
