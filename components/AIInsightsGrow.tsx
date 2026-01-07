@@ -68,8 +68,9 @@ const AIInsightsGrow: React.FC<AIInsightsGrowProps> = ({
 
   // Calculate program phase
   const getProgramPhase = (): { phase: string; weeksIn: number; description: string } => {
-    if (!programStartDate) {
-      return { phase: 'Unknown', weeksIn: 0, description: 'Program timing not available' };
+    // For "All Cohorts" view, don't show a specific phase
+    if (cohortName === 'All Cohorts' || !programStartDate) {
+      return { phase: 'Overview', weeksIn: 0, description: 'Aggregated view across all cohorts' };
     }
     
     const now = new Date();

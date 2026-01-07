@@ -1048,29 +1048,6 @@ const HomeDashboard: React.FC = () => {
                 )}
             </div>
             
-            {/* AI Insights Section */}
-            <AIInsightsGrow
-              companyName={companyName}
-              companyId={companyId}
-              cohortName={stats.selectedCohortName}
-              programStartDate={stats.programStartDate}
-              programEndDate={stats.programEndDate}
-              progressPct={stats.progressPct}
-              isCompleted={stats.isCompleted}
-              totalParticipants={stats.totalEmployeesCount}
-              participantsWithScores={stats.participantCount}
-              completedSessions={stats.completedSessionsCount}
-              targetSessions={stats.targetSessions}
-              competencyGrowth={stats.topSkills}
-              overallGrowthPct={stats.growthPct}
-              topFocusAreas={stats.topFocusAreasFromSurvey.length > 0 ? stats.topFocusAreasFromSurvey : stats.topFocusAreas.map(([topic, count]) => ({ topic, count, pct: (count / stats.totalEmployeesCount) * 100 }))}
-              sessionThemes={stats.topSessionSubThemes}
-              nps={stats.nps}
-              coachSatisfaction={stats.avgSat ? parseFloat(stats.avgSat) : null}
-              baselineMetrics={stats.baseline.metrics}
-              feedbackHighlights={stats.quotes}
-            />
-            
             {/* Quick Actions */}
              <div className="space-y-3">
                 <button 
@@ -1091,6 +1068,29 @@ const HomeDashboard: React.FC = () => {
         </div>
 
       </div>
+      
+      {/* AI Insights Section - Full Width */}
+      <AIInsightsGrow
+        companyName={companyName}
+        companyId={companyId}
+        cohortName={stats.selectedCohortName}
+        programStartDate={stats.programStartDate}
+        programEndDate={stats.programEndDate}
+        progressPct={stats.progressPct}
+        isCompleted={stats.isCompleted}
+        totalParticipants={stats.totalEmployeesCount}
+        participantsWithScores={stats.participantCount}
+        completedSessions={stats.completedSessionsCount}
+        targetSessions={stats.targetSessions}
+        competencyGrowth={stats.topSkills}
+        overallGrowthPct={stats.growthPct}
+        topFocusAreas={stats.topFocusAreasFromSurvey.length > 0 ? stats.topFocusAreasFromSurvey : stats.topFocusAreas.map(([topic, count]) => ({ topic, count, pct: (count / stats.totalEmployeesCount) * 100 }))}
+        sessionThemes={stats.topSessionSubThemes}
+        nps={stats.nps}
+        coachSatisfaction={stats.avgSat ? parseFloat(stats.avgSat) : null}
+        baselineMetrics={stats.baseline.metrics}
+        feedbackHighlights={stats.quotes}
+      />
     </div>
   );
 };
