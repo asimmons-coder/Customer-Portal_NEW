@@ -90,12 +90,12 @@ Date Range: ${dateRangeStr}
 - Adoption Rate: ${adoptionRate.toFixed(1)}%
 - Average Sessions per Active User: ${avgSessionsPerUser.toFixed(1)}
 
-### Coaching Session Themes (What employees are working on)
+### Coaching Session Themes (What employees are working on - THIS TIME PERIOD)
 - Leadership & Management: ${topLeadershipThemes || 'No data'}
 - Mental Well-being: ${topWellbeingThemes || 'No data'}
 - Communication Skills: ${topCommunicationThemes || 'No data'}
 
-### Satisfaction Metrics
+### Satisfaction Metrics (PROGRAM-WIDE / ALL-TIME - not specific to this time period)
 - Net Promoter Score (NPS): ${nps !== null ? nps : 'Not available'}
 - Coach Satisfaction: ${coachSatisfaction !== null ? `${coachSatisfaction.toFixed(1)}/10` : 'Not available'}
 - Total Survey Responses: ${surveyCount}
@@ -111,7 +111,7 @@ Date Range: ${dateRangeStr}
       const wlbPct = wellbeingBaseline.workLifeBalance > 0 ? ((wlbChange / wellbeingBaseline.workLifeBalance) * 100).toFixed(0) : 'N/A';
       
       summary += `
-### Wellbeing Changes (Baseline → Current, scale 1-10)
+### Personal Effectiveness Gains (PROGRAM-WIDE / ALL-TIME - Baseline → Current, scale 1-10)
 - Job Satisfaction: ${wellbeingBaseline.satisfaction.toFixed(1)} → ${wellbeingCurrent.satisfaction.toFixed(1)} (${satChange >= 0 ? '+' : ''}${satPct}% improvement)
 - Productivity: ${wellbeingBaseline.productivity.toFixed(1)} → ${wellbeingCurrent.productivity.toFixed(1)} (${prodChange >= 0 ? '+' : ''}${prodPct}% improvement)
 - Work-Life Balance: ${wellbeingBaseline.workLifeBalance.toFixed(1)} → ${wellbeingCurrent.workLifeBalance.toFixed(1)} (${wlbChange >= 0 ? '+' : ''}${wlbPct}% improvement)
