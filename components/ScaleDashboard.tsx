@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
+import AIInsights from './AIInsights';
 
 const categorizeRole = (jobTitle: string | undefined | null): string => {
   if (!jobTitle) return 'Unknown';
@@ -69,6 +70,7 @@ const ScaleDashboard: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
 
   useEffect(() => {
@@ -81,6 +83,7 @@ const ScaleDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let compId = session?.user?.app_metadata?.company_id || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -89,11 +92,13 @@ const ScaleDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              compId = override.id || compId;
             }
           } catch {}
         }
         
         setCompanyName(company);
+        setCompanyId(compId);
 
         const [sessData, survData, empData, welcomeData] = await Promise.all([
           getDashboardSessions(),
@@ -365,9 +370,61 @@ const ScaleDashboard: React.FC = () => {
       nps,
       avgSat,
       surveyCount: cohortSurveys.length,
-      impact
+      impact,
+      // For AI Insights - pass raw theme counts
+      rawThemes: {
+        leadership: parseThemes(currentPeriodSessions, 'leadership_management_skills'),
+        comms: parseThemes(currentPeriodSessions, 'communication_skills'),
+        wellbeing: parseThemes(currentPeriodSessions, 'mental_well_being')
+      },
+      feedbackHighlights: cohortSurveys
+        .flatMap(s => [(s as any).feedback_suggestions, (s as any).feedback_coach_description])
+        .filter(f => f && typeof f === 'string' && f.length > 20)
     };
   }, [sessions, surveys, employees, welcomeSurveys, windowDays, companyName, loading]);
+
+  // Prepare data for AI Insights
+  const aiInsightsData = useMemo(() => {
+    if (!metrics) return null;
+    
+    // Transform themes from {pct, top} format to {theme, count} format for AI
+    const transformThemes = (themeData: { pct: number; top: string[] }) => {
+      // We need actual counts, not just percentages
+      // For now, estimate based on total sessions and percentage
+      const totalSessions = metrics.currentSessionsCount;
+      return themeData.top.map((theme, idx) => ({
+        theme,
+        count: Math.round((themeData.pct / 100) * totalSessions / (idx + 1)) // Rough estimate
+      }));
+    };
+
+    return {
+      totalSessions: metrics.currentSessionsCount,
+      uniqueParticipants: metrics.activeInPeriod,
+      adoptionRate: metrics.adoptionRate,
+      avgSessionsPerUser: metrics.avgSessionsPerActive,
+      themes: {
+        leadership: transformThemes(metrics.themes.leadership),
+        communication: transformThemes(metrics.themes.comms),
+        wellbeing: transformThemes(metrics.themes.wellbeing),
+        other: []
+      },
+      nps: metrics.nps,
+      coachSatisfaction: metrics.avgSat ? parseFloat(metrics.avgSat) : null,
+      surveyCount: metrics.surveyCount,
+      feedbackHighlights: metrics.feedbackHighlights || [],
+      wellbeingBaseline: metrics.impact.satisfaction.baseline ? {
+        satisfaction: metrics.impact.satisfaction.baseline,
+        productivity: metrics.impact.productivity.baseline || 0,
+        workLifeBalance: metrics.impact.workLifeBalance.baseline || 0
+      } : undefined,
+      wellbeingCurrent: metrics.impact.satisfaction.post ? {
+        satisfaction: metrics.impact.satisfaction.post,
+        productivity: metrics.impact.productivity.post || 0,
+        workLifeBalance: metrics.impact.workLifeBalance.post || 0
+      } : undefined
+    };
+  }, [metrics]);
 
   if (loading) {
     return (
@@ -604,6 +661,26 @@ const ScaleDashboard: React.FC = () => {
         </div>
 
       </div>
+      
+      {/* AI Insights Section */}
+      {aiInsightsData && (
+        <AIInsights
+          companyName={companyName}
+          companyId={companyId}
+          programType="SCALE"
+          totalSessions={aiInsightsData.totalSessions}
+          uniqueParticipants={aiInsightsData.uniqueParticipants}
+          adoptionRate={aiInsightsData.adoptionRate}
+          avgSessionsPerUser={aiInsightsData.avgSessionsPerUser}
+          themes={aiInsightsData.themes}
+          nps={aiInsightsData.nps}
+          coachSatisfaction={aiInsightsData.coachSatisfaction}
+          surveyCount={aiInsightsData.surveyCount}
+          feedbackHighlights={aiInsightsData.feedbackHighlights}
+          wellbeingBaseline={aiInsightsData.wellbeingBaseline}
+          wellbeingCurrent={aiInsightsData.wellbeingCurrent}
+        />
+      )}
       
       {/* Testimonials Section */}
       <ScaleTestimonialsSection 
