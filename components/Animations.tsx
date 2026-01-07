@@ -580,6 +580,358 @@ export const Staggered: React.FC<StaggeredProps> = ({
 
 
 // ============================================
+// 5. ANIMATED BAR CHART
+// ============================================
+
+interface BarData {
+  label: string;
+  value: number;
+  preValue?: number;
+  color?: string;
+}
+
+interface AnimatedBarChartProps {
+  data: BarData[];
+  maxValue?: number;
+  showValues?: boolean;
+  showPercentChange?: boolean;
+  barHeight?: number;
+  colors?: {
+    pre?: string;
+    post?: string;
+    single?: string;
+  };
+  className?: string;
+}
+
+export const AnimatedBarChart: React.FC<AnimatedBarChartProps> = ({
+  data,
+  maxValue,
+  showValues = true,
+  showPercentChange = true,
+  barHeight = 12,
+  colors = {
+    pre: 'bg-gray-300',
+    post: 'bg-boon-green',
+    single: 'bg-boon-blue'
+  },
+  className = ''
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  const calculatedMax = maxValue || Math.max(...data.map(d => Math.max(d.value, d.preValue || 0)));
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className={`w-full ${className}`}>
+      <div className="space-y-4">
+        {data.map((item, index) => {
+          const hasPrePost = item.preValue !== undefined;
+          const postWidth = (item.value / calculatedMax) * 100;
+          const preWidth = hasPrePost ? ((item.preValue || 0) / calculatedMax) * 100 : 0;
+          const percentChange = hasPrePost && item.preValue 
+            ? ((item.value - item.preValue) / item.preValue) * 100 
+            : 0;
+          
+          return (
+            <div key={item.label} className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                <div className="flex items-center gap-3">
+                  {showValues && hasPrePost && (
+                    <span className="text-xs text-gray-500">
+                      {item.preValue?.toFixed(1)} → {item.value.toFixed(1)}
+                    </span>
+                  )}
+                  {showValues && !hasPrePost && (
+                    <span className="text-sm font-bold text-gray-700">
+                      {item.value.toFixed(1)}
+                    </span>
+                  )}
+                  {showPercentChange && hasPrePost && percentChange !== 0 && (
+                    <span className={`text-sm font-bold ${percentChange > 0 ? 'text-boon-green' : 'text-red-500'}`}>
+                      {percentChange > 0 ? '+' : ''}{percentChange.toFixed(0)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="relative" style={{ height: hasPrePost ? barHeight * 2 + 4 : barHeight }}>
+                {hasPrePost ? (
+                  <>
+                    <div 
+                      className="absolute top-0 left-0 w-full bg-gray-100 rounded-full overflow-hidden"
+                      style={{ height: barHeight }}
+                    >
+                      <div
+                        className={`h-full rounded-full ${colors.pre} transition-all duration-1000 ease-out`}
+                        style={{ 
+                          width: isVisible ? `${preWidth}%` : '0%',
+                          transitionDelay: `${index * 100}ms`
+                        }}
+                      />
+                    </div>
+                    <div 
+                      className="absolute left-0 w-full bg-gray-100 rounded-full overflow-hidden"
+                      style={{ height: barHeight, top: barHeight + 4 }}
+                    >
+                      <div
+                        className={`h-full rounded-full ${item.color || colors.post} transition-all duration-1000 ease-out`}
+                        style={{ 
+                          width: isVisible ? `${postWidth}%` : '0%',
+                          transitionDelay: `${index * 100 + 200}ms`
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div 
+                    className="absolute top-0 left-0 w-full bg-gray-100 rounded-full overflow-hidden"
+                    style={{ height: barHeight }}
+                  >
+                    <div
+                      className={`h-full rounded-full ${item.color || colors.single} transition-all duration-1000 ease-out`}
+                      style={{ 
+                        width: isVisible ? `${postWidth}%` : '0%',
+                        transitionDelay: `${index * 100}ms`
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      
+      {data.some(d => d.preValue !== undefined) && (
+        <div className="flex items-center gap-4 mt-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1.5">
+            <div className={`w-3 h-3 rounded ${colors.pre}`} />
+            <span>Before</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <div className={`w-3 h-3 rounded ${colors.post}`} />
+            <span>After</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ============================================
+// 6. ANIMATED DONUT CHART
+// ============================================
+
+interface DonutSegment {
+  label: string;
+  value: number;
+  color: string;
+}
+
+interface AnimatedDonutChartProps {
+  data: DonutSegment[];
+  size?: number;
+  strokeWidth?: number;
+  showLegend?: boolean;
+  showCenter?: boolean;
+  centerLabel?: string;
+  centerValue?: string | number;
+  className?: string;
+}
+
+export const AnimatedDonutChart: React.FC<AnimatedDonutChartProps> = ({
+  data,
+  size = 200,
+  strokeWidth = 24,
+  showLegend = true,
+  showCenter = true,
+  centerLabel,
+  centerValue,
+  className = ''
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const center = size / 2;
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  let cumulativePercent = 0;
+  const segments = data.map((item, index) => {
+    const percent = total > 0 ? item.value / total : 0;
+    const offset = cumulativePercent * circumference;
+    const length = percent * circumference;
+    cumulativePercent += percent;
+    
+    return {
+      ...item,
+      percent,
+      offset,
+      length,
+      delay: index * 200
+    };
+  });
+
+  return (
+    <div ref={ref} className={`flex flex-col items-center ${className}`}>
+      <div className="relative" style={{ width: size, height: size }}>
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          className="transform -rotate-90"
+        >
+          <circle
+            cx={center}
+            cy={center}
+            r={radius}
+            fill="none"
+            stroke="#f3f4f6"
+            strokeWidth={strokeWidth}
+          />
+          
+          {segments.map((segment) => (
+            <circle
+              key={segment.label}
+              cx={center}
+              cy={center}
+              r={radius}
+              fill="none"
+              stroke={segment.color}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              className="transition-all duration-1000 ease-out"
+              style={{
+                strokeDasharray: isVisible 
+                  ? `${segment.length} ${circumference - segment.length}`
+                  : `0 ${circumference}`,
+                strokeDashoffset: isVisible ? -segment.offset : 0,
+                transitionDelay: `${segment.delay}ms`
+              }}
+            />
+          ))}
+        </svg>
+        
+        {showCenter && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {centerValue !== undefined && (
+              <span className="text-2xl font-bold text-gray-900">
+                {typeof centerValue === 'number' ? (
+                  <CountUp end={centerValue} duration={1500} />
+                ) : (
+                  centerValue
+                )}
+              </span>
+            )}
+            {centerLabel && (
+              <span className="text-xs text-gray-500 uppercase tracking-wide">
+                {centerLabel}
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {showLegend && (
+        <div className="flex flex-wrap justify-center gap-4 mt-4">
+          {segments.map(segment => (
+            <div key={segment.label} className="flex items-center gap-2">
+              <div 
+                className="w-3 h-3 rounded-full" 
+                style={{ backgroundColor: segment.color }}
+              />
+              <span className="text-sm text-gray-600">
+                {segment.label} ({(segment.percent * 100).toFixed(0)}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+// ============================================
+// 7. NPS DONUT CHART (Pre-configured)
+// ============================================
+
+interface NPSDonutChartProps {
+  promoters: number;
+  passives: number;
+  detractors: number;
+  npsScore: number;
+  size?: number;
+  className?: string;
+}
+
+export const NPSDonutChart: React.FC<NPSDonutChartProps> = ({
+  promoters,
+  passives,
+  detractors,
+  npsScore,
+  size = 180,
+  className = ''
+}) => {
+  const data: DonutSegment[] = [
+    { label: 'Promoters', value: promoters, color: '#22c55e' },
+    { label: 'Passives', value: passives, color: '#facc15' },
+    { label: 'Detractors', value: detractors, color: '#ef4444' }
+  ];
+
+  return (
+    <AnimatedDonutChart
+      data={data}
+      size={size}
+      strokeWidth={20}
+      showCenter={true}
+      centerValue={npsScore > 0 ? `+${npsScore}` : npsScore.toString()}
+      centerLabel="NPS"
+      className={className}
+    />
+  );
+};
+
+
+// ============================================
 // USAGE EXAMPLES
 // ============================================
 
