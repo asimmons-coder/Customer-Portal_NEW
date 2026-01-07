@@ -1,3 +1,6 @@
+import React, { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 import { 
   CountUp, 
   CountUpPercentage, 
@@ -7,9 +10,6 @@ import {
   AnimatedProgressBar,
   SkeletonDashboard
 } from './animations';
-import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
 import { 
   getDashboardSessions, 
   getCompetencyScores, 
@@ -734,11 +734,8 @@ const HomeDashboard: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-8 space-y-6 animate-pulse max-w-7xl mx-auto">
-        <div className="h-48 bg-gray-100 rounded-2xl w-full mb-8"></div>
-        <div className="grid grid-cols-4 gap-6 mb-8">
-            {[1,2,3,4].map(i => <div key={i} className="h-32 bg-gray-100 rounded-xl"></div>)}
-        </div>
+      <div className="p-8 max-w-7xl mx-auto">
+        <SkeletonDashboard />
       </div>
     );
   }
@@ -782,30 +779,30 @@ const HomeDashboard: React.FC = () => {
       {/* Show improvement hero if we have competency data with growth, otherwise show progress */}
       {stats.participantCount >= 3 && stats.growthPct > 0 ? (
         // IMPROVEMENT HERO - Show when we have competency data
-        <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
+        <HoverCard className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-boon-green"></div>
             <h2 className="text-xl md:text-2xl text-gray-600 font-medium mb-4">Your team improved</h2>
             <div className="text-6xl md:text-8xl font-black text-boon-green tracking-tight mb-4">
-                +{stats.growthPct.toFixed(0)}%
+                <CountUpPercentage value={stats.growthPct} className="" />
             </div>
             <p className="text-xl md:text-2xl text-gray-600 font-medium">in leadership competencies</p>
             <p className="text-sm text-gray-400 mt-6 font-medium">
                 Based on {stats.participantCount} participants completing pre/post assessments
             </p>
-        </div>
+        </HoverCard>
       ) : (
         // IN-PROGRESS HERO - Show progress percentage when no competency data yet
-        <div className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
+        <HoverCard className="bg-white rounded-2xl p-8 md:p-12 shadow-sm border border-gray-100 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-boon-blue"></div>
             <h2 className="text-xl md:text-2xl text-gray-600 font-medium mb-4">Your team is</h2>
             <div className="text-6xl md:text-8xl font-black text-boon-blue tracking-tight mb-4">
-                {stats.progressPct}%
+                <CountUp end={stats.progressPct} duration={1500} suffix="%" />
             </div>
             <p className="text-xl md:text-2xl text-gray-600 font-medium">through the program</p>
             <p className="text-sm text-gray-400 mt-6 font-medium">
                 {stats.sessionsUsedCount} of {stats.targetSessions} expected sessions used ({stats.totalEmployeesCount} employees × {stats.sessionsPerEmployee} sessions)
             </p>
-        </div>
+        </HoverCard>
       )}
 
       {/* Key Metrics Row */}
@@ -888,13 +885,15 @@ const HomeDashboard: React.FC = () => {
                     {stats.topSkills.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             {stats.topSkills.map((skill) => (
-                                <div key={skill.name} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col justify-between">
-                                    <div className="text-3xl font-bold text-boon-green mb-1">+{skill.pct.toFixed(0)}%</div>
+                                <HoverCard key={skill.name} className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex flex-col justify-between">
+                                    <div className="text-3xl font-bold text-boon-green mb-1">
+                                        <CountUpPercentage value={skill.pct} />
+                                    </div>
                                     <div className="font-bold text-gray-800 text-sm leading-tight mb-3">{skill.name}</div>
                                     <div className="text-xs font-semibold text-gray-400">
                                         {skill.avgPre.toFixed(1)} <span className="mx-1">→</span> {skill.avgPost.toFixed(1)}
                                     </div>
-                                </div>
+                                </HoverCard>
                             ))}
                         </div>
                     ) : (
@@ -1128,18 +1127,49 @@ const HomeDashboard: React.FC = () => {
 
 // --- Sub Components ---
 
-const MetricCard = ({ value, label, icon, subtext }: { value: string | number, label: string, icon: React.ReactNode, subtext?: string }) => (
-    <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col justify-between">
-        <div className="flex items-center gap-3 mb-3">
-            {icon}
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</span>
-        </div>
-        <div>
-           <div className="text-3xl font-black text-boon-dark">{value}</div>
-           {subtext && <div className="text-xs text-gray-400 mt-1">{subtext}</div>}
-        </div>
-    </div>
-);
+const MetricCard = ({ value, label, icon, subtext }: { value: string | number, label: string, icon: React.ReactNode, subtext?: string }) => {
+    // Determine if value is numeric for count-up animation
+    const isNumeric = typeof value === 'number';
+    const isNPS = label.toLowerCase().includes('nps');
+    const isRating = label.toLowerCase().includes('satisfaction') && String(value).includes('/');
+    const isPercentage = String(value).includes('%');
+    
+    const renderValue = () => {
+        if (isNumeric) {
+            if (isNPS) {
+                return <CountUpNPS value={value as number} className="text-3xl font-black text-boon-dark" />;
+            }
+            return <CountUp end={value as number} duration={1200} className="text-3xl font-black text-boon-dark" />;
+        }
+        if (isRating) {
+            const num = parseFloat(String(value).split('/')[0]);
+            return <CountUpRating value={num} className="text-3xl font-black text-boon-dark" />;
+        }
+        if (isPercentage) {
+            const num = parseFloat(String(value).replace('%', ''));
+            return <CountUp end={num} duration={1200} suffix="%" className="text-3xl font-black text-boon-dark" />;
+        }
+        // For NPS with + prefix like "+69"
+        if (String(value).startsWith('+')) {
+            const num = parseFloat(String(value).replace('+', ''));
+            return <CountUpNPS value={num} className="text-3xl font-black text-boon-dark" />;
+        }
+        return <span className="text-3xl font-black text-boon-dark">{value}</span>;
+    };
+    
+    return (
+        <HoverCard className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm h-full flex flex-col justify-between">
+            <div className="flex items-center gap-3 mb-3">
+                {icon}
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wide">{label}</span>
+            </div>
+            <div>
+               <div>{renderValue()}</div>
+               {subtext && <div className="text-xs text-gray-400 mt-1">{subtext}</div>}
+            </div>
+        </HoverCard>
+    );
+};
 
 const ThemeBar = ({ label, count, total, color }: { label: string, count: number, total: number, color: string }) => {
     const pct = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -1149,9 +1179,7 @@ const ThemeBar = ({ label, count, total, color }: { label: string, count: number
                 <span className="text-gray-700">{label}</span>
                 <span className="text-gray-900">{pct}%</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }}></div>
-            </div>
+            <AnimatedProgressBar value={pct} color={color} height="h-2" />
         </div>
     );
 };

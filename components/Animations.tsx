@@ -577,3 +577,57 @@ export const Staggered: React.FC<StaggeredProps> = ({
     </div>
   );
 };
+
+
+// ============================================
+// USAGE EXAMPLES
+// ============================================
+
+/*
+// 1. Count-up numbers:
+<CountUpSessions value={897} className="text-3xl font-bold" />
+<CountUpPercentage value={4} className="text-6xl font-black text-boon-green" />
+<CountUpNPS value={69} className="text-3xl font-bold" />
+<CountUpRating value={9.1} className="text-3xl font-bold" />
+
+// 2. Skeleton loaders (while data loads):
+{loading ? <SkeletonDashboard /> : <ActualDashboard />}
+
+// Or individual pieces:
+{loading ? <SkeletonStatCard /> : <StatCard ... />}
+
+// 3. Animated progress bars:
+<AnimatedProgressBar value={71} color="bg-boon-blue" />
+
+<CompetencyGrowthBar 
+  name="Strategic Thinking" 
+  preScore={3.2} 
+  postScore={3.4} 
+  delay={100}
+/>
+
+// 4. Hover cards:
+<HoverCard className="bg-white rounded-2xl p-6">
+  <h3>Card content</h3>
+</HoverCard>
+
+// Or use the pre-built stat card:
+<AnimatedStatCard
+  icon={<CheckCircle className="w-4 h-4" />}
+  label="Sessions Completed"
+  value={<CountUpSessions value={897} />}
+  color="blue"
+/>
+
+// 5. Fade in on scroll:
+<FadeIn direction="up" delay={200}>
+  <MyComponent />
+</FadeIn>
+
+// Staggered list:
+<Staggered staggerDelay={100}>
+  <Card1 />
+  <Card2 />
+  <Card3 />
+</Staggered>
+*/
