@@ -29,6 +29,7 @@ import {
   ChevronUp
 } from 'lucide-react';
 import AIInsights from './AIInsights';
+import { CountUp, AnimatedProgressBar, HoverCard } from './Animations';
 
 const categorizeRole = (jobTitle: string | undefined | null): string => {
   if (!jobTitle) return 'Unknown';
@@ -624,15 +625,21 @@ const ScaleDashboard: React.FC = () => {
         </div>
 
         <div className="space-y-6">
-           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+           <HoverCard className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
               <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Benefit Sentiment</h3>
               <div className="space-y-6">
                  <div>
-                    <div className="text-3xl font-black text-boon-dark">{m.nps !== null ? (m.nps > 0 ? `+${m.nps}` : m.nps) : 'n/a'}</div>
+                    <div className="text-3xl font-black text-boon-dark">
+                      {m.nps !== null ? (
+                        <>{m.nps > 0 ? '+' : ''}<CountUp end={m.nps} duration={1500} decimals={0} /></>
+                      ) : 'n/a'}
+                    </div>
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Net Promoter Score</div>
                  </div>
                  <div>
-                    <div className="text-3xl font-black text-boon-dark">{m.avgSat || 'n/a'}</div>
+                    <div className="text-3xl font-black text-boon-dark">
+                      {m.avgSat ? <CountUp end={parseFloat(m.avgSat)} duration={1500} decimals={1} /> : 'n/a'}
+                    </div>
                     <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Avg Coach Satisfaction</div>
                  </div>
                  <div className="pt-4 border-t border-gray-50">
@@ -642,7 +649,7 @@ const ScaleDashboard: React.FC = () => {
                     </div>
                  </div>
               </div>
-           </div>
+           </HoverCard>
 
            <div className="bg-boon-dark text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
               <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl"></div>
@@ -650,11 +657,11 @@ const ScaleDashboard: React.FC = () => {
               <div className="space-y-4">
                  <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-white/70">Period Total</span>
-                    <span className="text-lg font-bold">{m.currentSessionsCount} sessions</span>
+                    <span className="text-lg font-bold"><CountUp end={m.currentSessionsCount} duration={1500} decimals={0} /> sessions</span>
                  </div>
                  <div className="flex justify-between items-center">
                     <span className="text-xs font-medium text-white/70">Repeat Users</span>
-                    <span className="text-lg font-bold">{m.activeWithTwoPlus}</span>
+                    <span className="text-lg font-bold"><CountUp end={m.activeWithTwoPlus} duration={1500} decimals={0} /></span>
                  </div>
               </div>
            </div>
@@ -697,9 +704,14 @@ const ScaleDashboard: React.FC = () => {
 const HealthCard = ({ title, value, label, trend, icon, subtitle, trendLabel }: any) => {
   const isPositive = (trend || 0) > 0;
   const isZero = (trend || 0) === 0;
+  
+  // Parse numeric value for animation
+  const numericValue = typeof value === 'string' ? parseFloat(value.replace('%', '')) : value;
+  const isPercentage = typeof value === 'string' && value.includes('%');
+  const isDecimal = typeof value === 'string' && value.includes('.');
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between hover:border-boon-blue/20 transition-colors">
+    <HoverCard className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
       <div className="flex justify-between items-start mb-4">
         <div className="p-2.5 bg-gray-50 rounded-xl">{icon}</div>
         {trend !== null && !isZero && (
@@ -711,12 +723,18 @@ const HealthCard = ({ title, value, label, trend, icon, subtitle, trendLabel }: 
       </div>
       <div>
         <div className="text-3xl font-black text-boon-dark leading-none">
-          {value} <span className="text-sm font-bold text-gray-300">{label}</span>
+          <CountUp 
+            end={numericValue} 
+            duration={1500} 
+            decimals={isDecimal ? 1 : 0} 
+            suffix={isPercentage ? '%' : ''} 
+          />
+          {label && <span className="text-sm font-bold text-gray-300 ml-1">{label}</span>}
         </div>
         <div className="text-xs font-bold text-boon-dark mt-2 uppercase tracking-wide">{title}</div>
         <p className="text-[10px] text-gray-400 font-medium mt-1 truncate">{subtitle} {trend !== null && trendLabel && <span className="text-gray-300 ml-1">- {trendLabel}</span>}</p>
       </div>
-    </div>
+    </HoverCard>
   );
 };
 
@@ -732,13 +750,13 @@ const ThemeRow = ({ label, pct, sub, color }: any) => (
         </div>
       </div>
       <div className="text-right">
-        <div className="text-lg font-black text-boon-dark">{pct.toFixed(0)}%</div>
+        <div className="text-lg font-black text-boon-dark">
+          <CountUp end={pct} duration={1200} decimals={0} suffix="%" />
+        </div>
         <div className="text-[9px] font-bold text-gray-300 uppercase tracking-widest">Frequency</div>
       </div>
     </div>
-    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-       <div className={`h-full rounded-full transition-all duration-1000 ease-out ${color}`} style={{ width: `${pct}%`, opacity: 0.8 }}></div>
-    </div>
+    <AnimatedProgressBar value={pct} max={100} color={color} height="h-1.5" />
   </div>
 );
 
@@ -754,17 +772,21 @@ const ImpactCard = ({ label, baseline, post, change }: {
   if (baseline === null && post === null) return null;
 
   return (
-    <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+    <HoverCard className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
       <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{label}</div>
       
       <div className="flex items-center gap-3 mb-3">
         <div className="text-center">
-          <div className="text-2xl font-black text-gray-400">{baseline?.toFixed(1) || 'n/a'}</div>
+          <div className="text-2xl font-black text-gray-400">
+            {baseline !== null ? <CountUp end={baseline} duration={1200} decimals={1} /> : 'n/a'}
+          </div>
           <div className="text-[10px] text-gray-400 font-medium">Baseline</div>
         </div>
         <ArrowRight className="w-5 h-5 text-gray-300" />
         <div className="text-center">
-          <div className="text-2xl font-black text-boon-dark">{post?.toFixed(1) || 'n/a'}</div>
+          <div className="text-2xl font-black text-boon-dark">
+            {post !== null ? <CountUp end={post} duration={1200} decimals={1} /> : 'n/a'}
+          </div>
           <div className="text-[10px] text-gray-500 font-medium">Current</div>
         </div>
       </div>
@@ -776,10 +798,10 @@ const ImpactCard = ({ label, baseline, post, change }: {
           'bg-gray-50 text-gray-500'
         }`}>
           {isPositive ? <TrendingUp size={14} /> : isNegative ? <TrendingDown size={14} /> : null}
-          {isPositive ? '+' : ''}{change.toFixed(0)}% change
+          {isPositive ? '+' : ''}<CountUp end={change} duration={1000} decimals={0} />% change
         </div>
       )}
-    </div>
+    </HoverCard>
   );
 };
 
