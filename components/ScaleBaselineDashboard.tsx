@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getWelcomeSurveyScaleData } from '../lib/dataFetcher';
+import { CountUp, AnimatedProgressBar, HoverCard } from './Animations';
 import { 
   Users, 
   Briefcase, 
@@ -55,6 +56,7 @@ const FOCUS_AREA_LABELS: Record<string, string> = {
   focus_work_performance: 'Work Performance',
   focus_work_stress: 'Managing Work Stress',
   focus_coping_stress_anxiety: 'Coping with Stress & Anxiety',
+  focus_work_life_balance: 'Work-Life Balance',
   focus_work_life_balance: 'Work-Life Balance',
   focus_work_relationships: 'Work Relationships',
   focus_relationships_self_others: 'Relationships (Self & Others)',
@@ -327,17 +329,14 @@ const ScaleBaselineDashboard: React.FC = () => {
                 <div key={focus.key}>
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-gray-700">{focus.label}</span>
-                    <span className="text-sm font-bold text-gray-900">{focus.count} ({focus.pct.toFixed(0)}%)</span>
+                    <span className="text-sm font-bold text-gray-900">{focus.count} (<CountUp end={focus.pct} duration={1200} decimals={0} />%)</span>
                   </div>
-                  <div className="w-full bg-gray-100 rounded-full h-2.5">
-                    <div
-                      className="h-2.5 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${focus.pct}%`,
-                        backgroundColor: idx < 3 ? '#8B5CF6' : idx < 6 ? '#EC4899' : '#10B981'
-                      }}
-                    />
-                  </div>
+                  <AnimatedProgressBar 
+                    value={focus.pct} 
+                    max={100} 
+                    color={idx < 3 ? 'bg-boon-purple' : idx < 6 ? 'bg-boon-pink' : 'bg-boon-green'} 
+                    height="h-2.5" 
+                  />
                 </div>
               ))}
               {m.sortedFocusAreas.filter(f => f.count > 0).length === 0 && (
@@ -388,16 +387,16 @@ const ScaleBaselineDashboard: React.FC = () => {
 // Sub-components
 
 const SummaryCard = ({ icon, label, value, suffix, isText }: any) => (
-  <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+  <HoverCard className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
     <div className="flex items-center gap-2 mb-3">
       <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
     </div>
     <div className={`${isText ? 'text-lg' : 'text-3xl'} font-black text-boon-dark`}>
-      {value}
+      {isText ? value : <CountUp end={value} duration={1500} decimals={0} />}
       {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
     </div>
-  </div>
+  </HoverCard>
 );
 
 const SummaryCardWithBenchmark = ({ icon, label, value, benchmark, suffix }: {
@@ -412,13 +411,13 @@ const SummaryCardWithBenchmark = ({ icon, label, value, benchmark, suffix }: {
   const isBelow = pctDiff !== null && pctDiff < 0;
 
   return (
-    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+    <HoverCard className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
       <div className="flex items-center gap-2 mb-3">
         <div className="p-2 bg-gray-50 rounded-lg">{icon}</div>
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{label}</span>
       </div>
       <div className="text-3xl font-black text-boon-dark">
-        {value.toFixed(1)}
+        <CountUp end={value} duration={1500} decimals={1} />
         {suffix && <span className="text-sm font-medium text-gray-400 ml-1">{suffix}</span>}
       </div>
       {pctDiff !== null && (
@@ -427,7 +426,7 @@ const SummaryCardWithBenchmark = ({ icon, label, value, benchmark, suffix }: {
           <span>{isAbove ? '+' : ''}{pctDiff.toFixed(0)}% vs Boon avg</span>
         </div>
       )}
-    </div>
+    </HoverCard>
   );
 };
 
@@ -527,7 +526,7 @@ const DemographicCard = ({ icon, title, data, total }: {
   const sortedData = Object.entries(data).sort((a, b) => b[1] - a[1]);
   
   return (
-    <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+    <HoverCard className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
       <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
         {icon} {title}
       </h4>
@@ -538,16 +537,16 @@ const DemographicCard = ({ icon, title, data, total }: {
               <span className="text-xs font-medium text-gray-600">{label}</span>
               <span className="text-xs font-bold text-gray-800">{((count / total) * 100).toFixed(0)}%</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-1.5">
-              <div
-                className="h-1.5 rounded-full bg-boon-blue"
-                style={{ width: `${(count / total) * 100}%` }}
-              />
-            </div>
+            <AnimatedProgressBar 
+              value={(count / total) * 100} 
+              max={100} 
+              color="bg-boon-blue" 
+              height="h-1.5" 
+            />
           </div>
         ))}
       </div>
-    </div>
+    </HoverCard>
   );
 };
 
