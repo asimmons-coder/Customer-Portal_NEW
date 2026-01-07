@@ -3,6 +3,7 @@ import { getCompetencyScores, getWelcomeSurveyData, getSurveyResponses } from '.
 import { CompetencyScore, WelcomeSurveyEntry, SurveyResponse } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
+import { AnimatedBarChart, AnimatedProgressBar, CountUp } from './Animations';
 import { BarChart, AlertCircle, Clock, Info, MessageSquareQuote, ChevronDown, ChevronUp } from 'lucide-react';
 
 // --- Program Display Name Mapping ---
@@ -320,24 +321,25 @@ const ImpactDashboard: React.FC = () => {
 
                 {baselineStats.length > 0 ? (
                     <div className="space-y-6">
-                        {baselineStats.map((item) => (
+                        {baselineStats.map((item, index) => (
                             <div key={item.label}>
                                 <div className="flex justify-between items-end mb-2">
                                     <span className="text-sm font-bold text-gray-700">{item.label}</span>
                                     <span className="text-sm font-black text-boon-dark">{item.avg.toFixed(1)} <span className="text-gray-300 font-normal">/ 5.0</span></span>
                                 </div>
-                                <div className="relative w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="relative">
                                      {/* Markers */}
-                                     <div className="absolute top-0 bottom-0 left-[20%] w-px bg-white/50"></div>
-                                     <div className="absolute top-0 bottom-0 left-[40%] w-px bg-white/50"></div>
-                                     <div className="absolute top-0 bottom-0 left-[60%] w-px bg-white/50"></div>
-                                     <div className="absolute top-0 bottom-0 left-[80%] w-px bg-white/50"></div>
+                                     <div className="absolute top-0 bottom-0 left-[20%] w-px bg-gray-200 z-10" style={{ height: '12px' }}></div>
+                                     <div className="absolute top-0 bottom-0 left-[40%] w-px bg-gray-200 z-10" style={{ height: '12px' }}></div>
+                                     <div className="absolute top-0 bottom-0 left-[60%] w-px bg-gray-200 z-10" style={{ height: '12px' }}></div>
+                                     <div className="absolute top-0 bottom-0 left-[80%] w-px bg-gray-200 z-10" style={{ height: '12px' }}></div>
                                      
-                                     {/* Bar */}
-                                     <div 
-                                        className="h-full bg-boon-blue rounded-full" 
-                                        style={{ width: `${(item.avg / 5) * 100}%` }}
-                                     ></div>
+                                     <AnimatedProgressBar 
+                                        value={item.avg} 
+                                        max={5} 
+                                        color="bg-boon-blue" 
+                                        height="h-3"
+                                     />
                                 </div>
                             </div>
                         ))}
@@ -374,7 +376,7 @@ const ImpactDashboard: React.FC = () => {
             {/* Left: Hero Metric */}
             <div className="flex-1 w-full">
                 <div className="text-[48px] md:text-[72px] font-bold text-[#466FF6] leading-none tracking-tight">
-                {overallStats.overallGrowthPct > 0 ? '+' : ''}{overallStats.overallGrowthPct.toFixed(1)}%
+                {overallStats.overallGrowthPct > 0 ? '+' : ''}<CountUp end={overallStats.overallGrowthPct} duration={1500} decimals={1} />%
                 </div>
                 <div className="text-sm font-medium uppercase tracking-wider text-[#6B7280] mt-4 mb-1">
                 Overall Competency Growth
@@ -410,91 +412,33 @@ const ImpactDashboard: React.FC = () => {
             </div>
             </div>
 
-            {/* 4. Competency Table */}
-            <div className="mb-12">
-            {/* Mobile View: Cards */}
-            <div className="block md:hidden space-y-4">
-                {competencyStats.map((item, index) => (
-                <div key={item.name} className="bg-white rounded-xl border border-[#E5E7EB] p-4 shadow-sm">
-                    <div className="flex justify-between items-start mb-3">
-                        <h3 className="text-sm font-bold text-[#111827] w-2/3">{item.name}</h3>
-                        <span className={`text-lg font-bold ${item.change >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                            {item.pctGrowth > 0 ? '+' : ''}{Math.round(item.pctGrowth)}%
-                        </span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between text-sm text-[#6B7280] mb-3 bg-[#F9FAFB] p-2 rounded-lg">
-                        <div className="flex flex-col items-center">
-                            <span className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1">Before</span>
-                            <span className="font-semibold text-[#374151]">{item.avgPre.toFixed(2)}</span>
-                        </div>
-                        <div className="text-[#9CA3AF]">→</div>
-                        <div className="flex flex-col items-center">
-                            <span className="text-[10px] uppercase font-bold text-[#9CA3AF] mb-1">After</span>
-                            <span className="font-bold text-[#466FF6]">{item.avgPost.toFixed(2)}</span>
-                        </div>
-                    </div>
-
-                    <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                            className="h-full rounded-full bg-[#466FF6]"
-                            style={{ width: `${Math.max((Math.abs(item.pctGrowth) / maxPctChange) * 100, 5)}%` }}
-                        />
-                    </div>
+            {/* 4. Competency Growth Chart */}
+            <div className="mb-12 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 md:p-8">
+              <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <BarChart className="w-4 h-4 text-boon-blue" /> Competency Growth by Area
+              </h3>
+              
+              {competencyStats.length > 0 ? (
+                <AnimatedBarChart
+                  data={competencyStats.map(item => ({
+                    label: item.name,
+                    value: item.avgPost,
+                    preValue: item.avgPre
+                  }))}
+                  maxValue={5}
+                  showValues={true}
+                  showPercentChange={true}
+                  barHeight={10}
+                  colors={{
+                    pre: 'bg-gray-300',
+                    post: 'bg-boon-blue'
+                  }}
+                />
+              ) : (
+                <div className="py-12 text-center text-gray-400 italic">
+                  No competency data found for the selected program.
                 </div>
-                ))}
-            </div>
-
-            {/* Desktop View: Table */}
-            <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                <thead>
-                    <tr>
-                    <th className="py-3 px-4 text-xs font-medium uppercase tracking-wider text-[#6B7280] border-b border-[#E5E7EB] w-[35%]">Competency</th>
-                    <th className="py-3 px-4 text-xs font-medium uppercase tracking-wider text-[#6B7280] border-b border-[#E5E7EB] text-center w-[10%]">Before</th>
-                    <th className="py-3 px-4 text-xs font-medium uppercase tracking-wider text-[#6B7280] border-b border-[#E5E7EB] text-center w-[10%]">After</th>
-                    <th className="py-3 px-4 text-xs font-medium uppercase tracking-wider text-[#6B7280] border-b border-[#E5E7EB] text-right w-[15%]">Change</th>
-                    <th className="py-3 px-4 text-xs font-medium uppercase tracking-wider text-[#6B7280] border-b border-[#E5E7EB] w-[30%]"></th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {competencyStats.map((item, index) => (
-                    <tr 
-                        key={item.name} 
-                        className={`${index % 2 === 0 ? 'bg-white' : 'bg-[#FAFAFA]'} hover:bg-[#EFF6FF] transition-colors h-[48px]`}
-                    >
-                        <td className="px-4 text-sm font-medium text-[#111827]">
-                        {item.name}
-                        </td>
-                        <td className="px-4 text-sm text-[#6B7280] text-center">
-                        {item.avgPre.toFixed(2)}
-                        </td>
-                        <td className="px-4 text-sm font-bold text-[#466FF6] text-center">
-                        {item.avgPost.toFixed(2)}
-                        </td>
-                        <td className={`px-4 text-sm font-bold text-right ${item.change >= 0 ? 'text-[#10B981]' : 'text-[#EF4444]'}`}>
-                        {item.pctGrowth > 0 ? '+' : ''}{Math.round(item.pctGrowth)}%
-                        </td>
-                        <td className="px-4 align-middle">
-                        <div className="h-full flex items-center">
-                            <div 
-                                className="h-2 rounded-full bg-[#466FF6] opacity-90"
-                                style={{ width: `${Math.max((Math.abs(item.pctGrowth) / maxPctChange) * 100, 1)}%` }}
-                            />
-                        </div>
-                        </td>
-                    </tr>
-                    ))}
-                    {competencyStats.length === 0 && (
-                    <tr>
-                        <td colSpan={5} className="py-12 text-center text-[#9CA3AF]">
-                        No competency data found for the selected program.
-                        </td>
-                    </tr>
-                    )}
-                </tbody>
-                </table>
-            </div>
+              )}
             </div>
             
             {/* Testimonials Section */}
