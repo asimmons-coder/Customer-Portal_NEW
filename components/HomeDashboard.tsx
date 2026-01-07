@@ -1,3 +1,12 @@
+import { 
+  CountUp, 
+  CountUpPercentage, 
+  CountUpNPS, 
+  CountUpRating,
+  HoverCard,
+  AnimatedProgressBar,
+  SkeletonDashboard
+} from './animations';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
