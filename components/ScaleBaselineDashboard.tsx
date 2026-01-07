@@ -56,7 +56,6 @@ const FOCUS_AREA_LABELS: Record<string, string> = {
   focus_work_stress: 'Managing Work Stress',
   focus_coping_stress_anxiety: 'Coping with Stress & Anxiety',
   focus_work_life_balance: 'Work-Life Balance',
-  focus_work_life_balance: 'Work-Life Balance',
   focus_work_relationships: 'Work Relationships',
   focus_relationships_self_others: 'Relationships (Self & Others)',
   focus_realizing_potential: 'Realizing Potential',
