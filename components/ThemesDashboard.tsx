@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { getDashboardSessions, getProgramConfig } from '../lib/dataFetcher';
 import { SessionWithEmployee, ProgramConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { CountUp, AnimatedProgressBar, HoverCard } from './Animations';
 import { 
   Lightbulb, 
   Filter, 
@@ -372,7 +373,7 @@ const ThemeCard = ({
   const maxVal = Math.max(...data.map(d => d.count), 1);
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
+    <HoverCard className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex flex-col h-full">
       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-50">
         <div className="p-3 rounded-xl text-white shadow-md" style={{ backgroundColor: color }}>
           {icon}
@@ -386,26 +387,14 @@ const ThemeCard = ({
       <div className="flex-1 space-y-4">
         {data.length > 0 ? (
           data.map((item, i) => (
-            <div key={i} className="group">
-              <div className="flex justify-between text-sm mb-1">
-                <span className="font-semibold text-gray-700 group-hover:text-boon-dark transition-colors">
-                  {item.name}
-                </span>
-                <span className="font-bold text-gray-400">
-                  {item.count}
-                </span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-                <div 
-                  className="h-full rounded-full transition-all duration-500 ease-out"
-                  style={{ 
-                    width: `${(item.count / maxVal) * 100}%`,
-                    backgroundColor: color,
-                    opacity: 0.8
-                  }}
-                />
-              </div>
-            </div>
+            <ThemeBarRow 
+              key={i} 
+              name={item.name} 
+              count={item.count} 
+              maxVal={maxVal} 
+              color={color} 
+              delay={i * 100}
+            />
           ))
         ) : (
           <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
@@ -413,6 +402,60 @@ const ThemeCard = ({
             <p className="text-sm">No data recorded</p>
           </div>
         )}
+      </div>
+    </HoverCard>
+  );
+};
+
+// Animated bar row for theme cards
+const ThemeBarRow = ({ name, count, maxVal, color, delay }: {
+  name: string;
+  count: number;
+  maxVal: number;
+  color: string;
+  delay: number;
+}) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const ref = React.useRef<HTMLDivElement>(null);
+  const percentage = (count / maxVal) * 100;
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (ref.current) {
+      observer.observe(ref.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={ref} className="group">
+      <div className="flex justify-between text-sm mb-1">
+        <span className="font-semibold text-gray-700 group-hover:text-boon-dark transition-colors">
+          {name}
+        </span>
+        <span className="font-bold text-gray-400">
+          <CountUp end={count} duration={1200} decimals={0} />
+        </span>
+      </div>
+      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+        <div 
+          className="h-full rounded-full transition-all duration-1000 ease-out"
+          style={{ 
+            width: isVisible ? `${percentage}%` : '0%',
+            backgroundColor: color,
+            opacity: 0.8,
+            transitionDelay: `${delay}ms`
+          }}
+        />
       </div>
     </div>
   );
