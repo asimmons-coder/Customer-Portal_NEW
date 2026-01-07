@@ -64,6 +64,7 @@ const EmployeeDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -72,34 +73,56 @@ const EmployeeDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              companyId = override.id || companyId;
             }
           } catch {}
         }
         
         setCompanyName(company);
 
-        // Fetch employees (program_config removed due to RLS issues - use coaching_program from employee records)
-        const empResult = await supabase
-          .from('employee_manager')
-          .select('*')
-          .neq('company_email', 'asimmons@boon-health.com')
-          .order('last_name', { ascending: true });
+        // Fetch employees filtered by company_id if available, otherwise fall back to name matching
+        let empResult;
+        
+        if (companyId) {
+          // Use exact company_id match (preferred)
+          empResult = await supabase
+            .from('employee_manager')
+            .select('*')
+            .eq('company_id', companyId)
+            .neq('company_email', 'asimmons@boon-health.com')
+            .order('last_name', { ascending: true });
+        } else {
+          // Fall back to fetching all and filtering by name (legacy)
+          empResult = await supabase
+            .from('employee_manager')
+            .select('*')
+            .neq('company_email', 'asimmons@boon-health.com')
+            .order('last_name', { ascending: true });
+        }
 
         if (empResult.error) throw empResult.error;
         
-        // Filter by company and map program_title from existing fields
-        const companyBase = company.split(' - ')[0].toLowerCase();
-        const filteredData = (empResult.data || [])
-          .filter(e => {
+        // If we used company_id, no need to filter; otherwise filter by company name
+        let filteredData = empResult.data || [];
+        
+        if (!companyId && company) {
+          // Legacy fallback: filter by exact company name match to avoid partial matches
+          filteredData = filteredData.filter(e => {
             const empCompany = (e.company_name || e.company || '').toLowerCase();
-            return empCompany.includes(companyBase) || companyBase.includes(empCompany.split(' - ')[0]);
-          })
-          .map(e => ({
-            ...e,
-            // Use coaching_program as program_title
-            program_title: e.coaching_program || e.program || undefined,
-            program: e.coaching_program || e.program
-          }));
+            const targetCompany = company.split(' - ')[0].toLowerCase();
+            // Use exact match instead of includes to avoid "Vita" matching "VitalSkin"
+            return empCompany === targetCompany || 
+                   empCompany.split(' - ')[0] === targetCompany ||
+                   empCompany === company.toLowerCase();
+          });
+        }
+        
+        // Map program_title from existing fields
+        filteredData = filteredData.map(e => ({
+          ...e,
+          program_title: e.coaching_program || e.program || undefined,
+          program: e.coaching_program || e.program
+        }));
         
         setEmployees(filteredData);
       } catch (err: any) {
