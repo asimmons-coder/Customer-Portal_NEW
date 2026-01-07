@@ -294,6 +294,18 @@ const HomeDashboard: React.FC = () => {
     const participantsWithBothScores = cohortCompetencies.filter(c => c.pre > 0 && c.post > 0);
     const participantCount = new Set(participantsWithBothScores.map(c => c.email)).size;
     
+    // DEBUG - competency filtering
+    console.log('DEBUG competencies:', {
+      selectedCohort,
+      selNorm,
+      totalCompetencies: competencies.length,
+      cohortCompetencies: cohortCompetencies.length,
+      participantsWithBothScores: participantsWithBothScores.length,
+      participantCount,
+      sampleCompetency: competencies[0],
+      sampleCohortCompetency: cohortCompetencies[0]
+    });
+    
     // Also check for end_of_program surveys as an indicator of completion
     const endOfProgramSurveys = surveys.filter(s => {
         if ((s as any).survey_type !== 'end_of_program') return false;
