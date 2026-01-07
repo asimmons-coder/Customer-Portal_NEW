@@ -35,6 +35,7 @@ import {
   Target
 } from 'lucide-react';
 import ExecutiveSignals from './ExecutiveSignals';
+import AIInsightsGrow from './AIInsightsGrow';
 
 const PROGRAM_DISPLAY_NAMES: Record<string, string> = {
   'CP-0028': 'GROW - Cohort 1',
@@ -55,6 +56,7 @@ const HomeDashboard: React.FC = () => {
   const [focusAreas, setFocusAreas] = useState<FocusAreaSelection[]>([]);
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [companyName, setCompanyName] = useState('');
+  const [companyId, setCompanyId] = useState('');
   const [firstName, setFirstName] = useState('');
   const [benchmarks, setBenchmarks] = useState<{satisfaction: number, productivity: number, balance: number, motivation: number, inclusion: number}>({
     satisfaction: 0, productivity: 0, balance: 0, motivation: 0, inclusion: 0
@@ -75,6 +77,7 @@ const HomeDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let compId = session?.user?.app_metadata?.company_id || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -83,12 +86,16 @@ const HomeDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              compId = override.id || compId;
             }
           } catch {}
         }
         
         if (company) {
           setCompanyName(company);
+        }
+        if (compId) {
+          setCompanyId(compId);
         }
         if (session?.user?.app_metadata?.first_name || session?.user?.user_metadata?.first_name) {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
@@ -286,7 +293,21 @@ const HomeDashboard: React.FC = () => {
     // Determine if Cohort is Completed - count only participants with BOTH pre AND post scores
     const participantsWithBothScores = cohortCompetencies.filter(c => c.pre > 0 && c.post > 0);
     const participantCount = new Set(participantsWithBothScores.map(c => c.email)).size;
-    const isCompleted = !isAll && participantCount >= 5;
+    
+    // Also check for end_of_program surveys as an indicator of completion
+    const endOfProgramSurveys = surveys.filter(s => {
+        if ((s as any).survey_type !== 'end_of_program') return false;
+        if (isAll) return true;
+        const surveyProgram = normalize((s as any).program_title || '');
+        // Match by program_title or account_name
+        if (surveyProgram && surveyProgram === selNorm) return true;
+        const surveyAccount = normalize((s as any).account_name || '');
+        if (surveyAccount && surveyAccount === selNorm) return true;
+        return false;
+    });
+    const hasEndOfProgramSurveys = endOfProgramSurveys.length >= 3;
+    
+    const isCompleted = !isAll && (participantCount >= 5 || hasEndOfProgramSurveys);
 
     // Get Session Count from Config - IMPROVED MATCHING LOGIC
     const currentAccountName = companyName.split(' - ')[0]; // Remove suffix if present
@@ -647,6 +668,10 @@ const HomeDashboard: React.FC = () => {
     };
 
     const recentSessions = getRecentActivity(cohortSessions);
+    
+    // Get program start date from config
+    const programStartDate = config?.program_start_date ? new Date(config.program_start_date) : null;
+    const programEndDate = config?.program_end_date ? new Date(config.program_end_date) : null;
 
     return {
         isCompleted,
@@ -670,7 +695,9 @@ const HomeDashboard: React.FC = () => {
         topFocusAreasFromSurvey,
         topSessionSubThemes,
         selectedCohortName: getCohortDisplayName(selectedCohort),
-        sessionsPerEmployee
+        sessionsPerEmployee,
+        programStartDate,
+        programEndDate
     };
   }, [sessions, competencies, surveys, employees, baselineData, focusAreas, selectedCohort, programConfig, companyName]);
 
@@ -1020,6 +1047,29 @@ const HomeDashboard: React.FC = () => {
                     </div>
                 )}
             </div>
+            
+            {/* AI Insights Section */}
+            <AIInsightsGrow
+              companyName={companyName}
+              companyId={companyId}
+              cohortName={stats.selectedCohortName}
+              programStartDate={stats.programStartDate}
+              programEndDate={stats.programEndDate}
+              progressPct={stats.progressPct}
+              isCompleted={stats.isCompleted}
+              totalParticipants={stats.totalEmployeesCount}
+              participantsWithScores={stats.participantCount}
+              completedSessions={stats.completedSessionsCount}
+              targetSessions={stats.targetSessions}
+              competencyGrowth={stats.topSkills}
+              overallGrowthPct={stats.growthPct}
+              topFocusAreas={stats.topFocusAreasFromSurvey.length > 0 ? stats.topFocusAreasFromSurvey : stats.topFocusAreas.map(([topic, count]) => ({ topic, count, pct: (count / stats.totalEmployeesCount) * 100 }))}
+              sessionThemes={stats.topSessionSubThemes}
+              nps={stats.nps}
+              coachSatisfaction={stats.avgSat ? parseFloat(stats.avgSat) : null}
+              baselineMetrics={stats.baseline.metrics}
+              feedbackHighlights={stats.quotes}
+            />
             
             {/* Quick Actions */}
              <div className="space-y-3">
