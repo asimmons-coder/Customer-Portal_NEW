@@ -61,6 +61,7 @@ const HomeDashboard: React.FC = () => {
   const [competencies, setCompetencies] = useState<CompetencyScore[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [welcomeSurveys, setWelcomeSurveys] = useState<any[]>([]);
   const [baselineData, setBaselineData] = useState<WelcomeSurveyEntry[]>([]);
   const [focusAreas, setFocusAreas] = useState<FocusAreaSelection[]>([]);
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
@@ -120,6 +121,22 @@ const HomeDashboard: React.FC = () => {
           getProgramConfig(),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
+
+        // Fetch welcome survey completions for utilization calculation
+        let welcomeSurveyData: any[] = [];
+        if (compId) {
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .eq('company_id', compId);
+          welcomeSurveyData = wsData || [];
+        } else if (company) {
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .ilike('account', `%${company.split(' - ')[0]}%`);
+          welcomeSurveyData = wsData || [];
+        }
 
         // DEBUG - remove after fixing
         console.log('DEBUG W&P surveys:', survData.filter(s => s.account_name?.includes('W&P')));
@@ -183,6 +200,7 @@ const HomeDashboard: React.FC = () => {
         setCompetencies(filteredCompetencies);
         setSurveys(filteredSurveys);
         setEmployees(filteredEmployees);
+        setWelcomeSurveys(welcomeSurveyData);
         setBaselineData(filteredBaseline);
         setFocusAreas(filteredFocusAreas);
         setProgramConfig(filteredConfig);
@@ -254,14 +272,7 @@ const HomeDashboard: React.FC = () => {
         return pTitle === selNorm || pName === selNorm || cName === selNorm || pCode === selNorm;
     });
 
-    // 2. Identify employees who have sessions in this cohort (Active Participants)
-    const cohortEmployeeIds = new Set(
-      cohortSessions.map(s => s.employee_id || s.employee_name || s.employee_manager?.full_name).filter(Boolean)
-    );
-    
-    const totalEmployeesCount = cohortEmployeeIds.size;
-    
-    // 3. Roster for Surveys/Other lookups
+    // 2. Get total employees from roster (not just those with sessions)
     const enrolledEmployees = employees.filter(e => {
         if (isAll) return true;
         const pt = normalize((e as any).program_title || '');
@@ -270,6 +281,22 @@ const HomeDashboard: React.FC = () => {
         const c = normalize(e.cohort || '');
         return pt === selNorm || p === selNorm || pn === selNorm || c === selNorm;
     });
+    
+    // Total employees from roster (this is the denominator for utilization)
+    const totalEmployeesCount = enrolledEmployees.length;
+    
+    // 3. Filter welcome surveys for this cohort
+    const cohortWelcomeSurveys = welcomeSurveys.filter(ws => {
+        if (isAll) return true;
+        const wsPt = normalize(ws.program_title || '');
+        return wsPt === selNorm;
+    });
+    
+    // Utilization = welcome survey completions / total employees in roster
+    const welcomeSurveyCount = cohortWelcomeSurveys.length;
+    const utilizationRate = totalEmployeesCount > 0 
+        ? Math.min(100, Math.round((welcomeSurveyCount / totalEmployeesCount) * 100))
+        : 0;
 
     // --- Metrics Calculation ---
     
@@ -399,8 +426,6 @@ const HomeDashboard: React.FC = () => {
       participantCount,
       sampleScores: participantsWithBothScores.slice(0, 3).map(c => ({ email: c.email, pre: c.pre, post: c.post }))
     });
-
-    const utilizationRate = 100; 
 
     // Filter surveys by program_title (for accurate NPS/CSAT per cohort)
     const validEmails = new Set(
@@ -711,6 +736,7 @@ const HomeDashboard: React.FC = () => {
         scheduledSessionsCount,
         targetSessions,
         totalEmployeesCount,
+        welcomeSurveyCount,
         utilizationRate,
         nps,
         avgSat,
@@ -730,7 +756,7 @@ const HomeDashboard: React.FC = () => {
         programStartDate,
         programEndDate
     };
-  }, [sessions, competencies, surveys, employees, baselineData, focusAreas, selectedCohort, programConfig, companyName]);
+  }, [sessions, competencies, surveys, employees, welcomeSurveys, baselineData, focusAreas, selectedCohort, programConfig, companyName]);
 
   if (loading) {
     return (
@@ -820,7 +846,7 @@ const HomeDashboard: React.FC = () => {
               value={`${stats.utilizationRate}%`} 
               label="Utilization" 
               icon={<Activity className="w-5 h-5 text-boon-purple" />}
-              subtext="Participating employees"
+              subtext={`${stats.welcomeSurveyCount} of ${stats.totalEmployeesCount} enrolled`}
           />
         )}
         {stats.nps !== null && (
