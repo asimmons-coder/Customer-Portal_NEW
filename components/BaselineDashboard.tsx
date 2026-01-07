@@ -676,44 +676,11 @@ const BaselineDashboard: React.FC = () => {
                     </div>
                     )}
 
-                    {/* Primary Focus Areas (12 competency categories) */}
-                    {stats.primaryFocusAreas && stats.primaryFocusAreas.length > 0 && (
-                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
-                        <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Target className="w-4 h-4 text-boon-red" /> Primary Focus Areas
-                        </h3>
-                        <div className="space-y-4">
-                            {stats.primaryFocusAreas.map((item, index) => (
-                                <div key={item.topic}>
-                                    <div className="flex justify-between text-sm font-bold mb-2">
-                                        <span className="text-gray-700 flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-full bg-boon-red/10 text-boon-red text-xs flex items-center justify-center font-black">
-                                                {index + 1}
-                                            </span>
-                                            {item.topic}
-                                        </span>
-                                        <span className="text-gray-400">{item.pct.toFixed(0)}%</span>
-                                    </div>
-                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
-                                        <div 
-                                            className="h-full bg-gradient-to-r from-boon-red to-boon-coral rounded-full transition-all duration-500" 
-                                            style={{ width: `${item.pct}%` }} 
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-4 italic">
-                            Based on {stats.count} participant responses
-                        </p>
-                    </div>
-                    )}
-
                     {/* Sub-Topics Focus Areas */}
                     {stats.subTopics && stats.subTopics.length > 0 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Lightbulb className="w-4 h-4 text-boon-purple" /> Specific Topics of Interest
+                            <Target className="w-4 h-4 text-boon-purple" /> Top Focus Areas
                         </h3>
                         <div className="space-y-4">
                             {stats.subTopics.map((item, index) => (
