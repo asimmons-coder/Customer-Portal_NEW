@@ -15,7 +15,8 @@ import {
   Layout,
   ChevronDown,
   ChevronUp,
-  Lightbulb
+  Lightbulb,
+  Target
 } from 'lucide-react';
 
 const BaselineDashboard: React.FC = () => {
@@ -343,6 +344,41 @@ const BaselineDashboard: React.FC = () => {
         .slice(0, 5);
     };
 
+    // Analyze primary focus area selections (the 12 competency categories)
+    const analyzePrimaryFocusAreas = (entries: WelcomeSurveyEntry[]) => {
+      const focusMap: Record<string, string> = {
+        focus_effective_communication: 'Effective Communication',
+        focus_persuasion_and_influence: 'Persuasion & Influence',
+        focus_adaptability_and_resilience: 'Adaptability & Resilience',
+        focus_strategic_thinking: 'Strategic Thinking',
+        focus_emotional_intelligence: 'Emotional Intelligence',
+        focus_building_relationships_at_work: 'Building Relationships',
+        focus_self_confidence_and_imposter_syndrome: 'Self Confidence',
+        focus_delegation_and_accountability: 'Delegation & Accountability',
+        focus_giving_and_receiving_feedback: 'Giving & Receiving Feedback',
+        focus_effective_planning_and_execution: 'Effective Planning & Execution',
+        focus_change_management: 'Change Management',
+        focus_time_management_and_productivity: 'Time Management & Productivity',
+      };
+      
+      const counts: { topic: string, count: number, pct: number }[] = [];
+      const totalParticipants = entries.length;
+      
+      if (totalParticipants === 0) return [];
+      
+      for (const [key, label] of Object.entries(focusMap)) {
+        const count = entries.filter(e => {
+          const val = (e as any)[key];
+          return val === true || val === 'true' || val === 1;
+        }).length;
+        if (count > 0) {
+          counts.push({ topic: label, count, pct: (count / totalParticipants) * 100 });
+        }
+      }
+      
+      return counts.sort((a, b) => b.count - a.count);
+    };
+
     // Analyze sub-topic selections from welcome survey
     const analyzeSubTopics = (entries: WelcomeSurveyEntry[]) => {
       const subTopicMap: Record<string, string> = {
@@ -468,6 +504,7 @@ const BaselineDashboard: React.FC = () => {
           experience: getDistribution('years_experience'),
           coaching: getDistribution('previous_coaching')
         },
+        primaryFocusAreas: analyzePrimaryFocusAreas(filtered),
         coachingGoals: analyzeCoachingGoals(filtered),
         subTopics: analyzeSubTopics(filtered)
       }
@@ -639,27 +676,27 @@ const BaselineDashboard: React.FC = () => {
                     </div>
                     )}
 
-                    {/* Coaching Goals Themes */}
-                    {stats.coachingGoals && stats.coachingGoals.length > 0 && (
+                    {/* Primary Focus Areas (12 competency categories) */}
+                    {stats.primaryFocusAreas && stats.primaryFocusAreas.length > 0 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Lightbulb className="w-4 h-4 text-boon-yellow" /> Top Coaching Goals
+                            <Target className="w-4 h-4 text-boon-red" /> Primary Focus Areas
                         </h3>
                         <div className="space-y-4">
-                            {stats.coachingGoals.map((item, index) => (
-                                <div key={item.theme}>
+                            {stats.primaryFocusAreas.map((item, index) => (
+                                <div key={item.topic}>
                                     <div className="flex justify-between text-sm font-bold mb-2">
                                         <span className="text-gray-700 flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-full bg-boon-blue/10 text-boon-blue text-xs flex items-center justify-center font-black">
+                                            <span className="w-6 h-6 rounded-full bg-boon-red/10 text-boon-red text-xs flex items-center justify-center font-black">
                                                 {index + 1}
                                             </span>
-                                            {item.theme}
+                                            {item.topic}
                                         </span>
                                         <span className="text-gray-400">{item.pct.toFixed(0)}%</span>
                                     </div>
                                     <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
                                         <div 
-                                            className="h-full bg-gradient-to-r from-boon-blue to-boon-purple rounded-full transition-all duration-500" 
+                                            className="h-full bg-gradient-to-r from-boon-red to-boon-coral rounded-full transition-all duration-500" 
                                             style={{ width: `${item.pct}%` }} 
                                         />
                                     </div>
@@ -667,7 +704,7 @@ const BaselineDashboard: React.FC = () => {
                             ))}
                         </div>
                         <p className="text-xs text-gray-400 mt-4 italic">
-                            Based on {filteredData.filter(d => (d as any).coaching_goals).length} participant responses
+                            Based on {stats.count} participant responses
                         </p>
                     </div>
                     )}
@@ -676,7 +713,7 @@ const BaselineDashboard: React.FC = () => {
                     {stats.subTopics && stats.subTopics.length > 0 && (
                     <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
                         <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Lightbulb className="w-4 h-4 text-boon-purple" /> Top Focus Areas
+                            <Lightbulb className="w-4 h-4 text-boon-purple" /> Specific Topics of Interest
                         </h3>
                         <div className="space-y-4">
                             {stats.subTopics.map((item, index) => (
@@ -701,6 +738,39 @@ const BaselineDashboard: React.FC = () => {
                         </div>
                         <p className="text-xs text-gray-400 mt-4 italic">
                             Based on {stats.count} participant responses
+                        </p>
+                    </div>
+                    )}
+
+                    {/* Other Coaching Goals (from free text) */}
+                    {stats.coachingGoals && stats.coachingGoals.length > 0 && (
+                    <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-gray-100">
+                        <h3 className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+                            <Lightbulb className="w-4 h-4 text-boon-yellow" /> Other Coaching Goals
+                        </h3>
+                        <div className="space-y-4">
+                            {stats.coachingGoals.map((item, index) => (
+                                <div key={item.theme}>
+                                    <div className="flex justify-between text-sm font-bold mb-2">
+                                        <span className="text-gray-700 flex items-center gap-2">
+                                            <span className="w-6 h-6 rounded-full bg-boon-yellow/10 text-boon-yellow text-xs flex items-center justify-center font-black">
+                                                {index + 1}
+                                            </span>
+                                            {item.theme}
+                                        </span>
+                                        <span className="text-gray-400">{item.pct.toFixed(0)}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 h-2 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-gradient-to-r from-boon-yellow to-boon-coral rounded-full transition-all duration-500" 
+                                            style={{ width: `${item.pct}%` }} 
+                                        />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-4 italic">
+                            Extracted from {filteredData.filter(d => (d as any).coaching_goals).length} free-text responses
                         </p>
                     </div>
                     )}

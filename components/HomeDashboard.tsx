@@ -898,7 +898,7 @@ const HomeDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Show Growth Areas if we have competency improvement data, otherwise show Themes */}
+            {/* Show Growth Areas if we have competency improvement data, otherwise show Focus Areas */}
             {stats.participantCount >= 3 && stats.growthPct > 0 ? (
                 // HAS COMPETENCY DATA: Growth Areas
                 <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
@@ -933,7 +933,7 @@ const HomeDashboard: React.FC = () => {
                         <h3 className="text-lg font-bold text-boon-dark flex items-center gap-2">
                            <Lightbulb className="w-5 h-5 text-boon-yellow" /> What Your Team is Working On
                         </h3>
-                        <button onClick={() => navigate('/baseline')} className="text-sm font-bold text-boon-blue hover:underline">View all themes →</button>
+                        <button onClick={() => navigate('/baseline')} className="text-sm font-bold text-boon-blue hover:underline">View baseline →</button>
                     </div>
                     
                     <div className="space-y-4">
