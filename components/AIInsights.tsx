@@ -11,6 +11,7 @@ interface AIInsightsProps {
   companyName: string;
   companyId: string;
   programType: 'SCALE' | 'GROW';
+  timeWindowDays: number; // 30, 90, 180, or 365
   // Session data
   totalSessions: number;
   uniqueParticipants: number;
@@ -39,6 +40,7 @@ const AIInsights: React.FC<AIInsightsProps> = ({
   companyName,
   companyId,
   programType,
+  timeWindowDays,
   totalSessions,
   uniqueParticipants,
   adoptionRate,
@@ -62,14 +64,30 @@ const AIInsights: React.FC<AIInsightsProps> = ({
     const topWellbeingThemes = themes.wellbeing.slice(0, 5).map(t => `${t.theme} (${t.count} sessions)`).join(', ');
     const topCommunicationThemes = themes.communication.slice(0, 5).map(t => `${t.theme} (${t.count} sessions)`).join(', ');
     
+    // Calculate date range for context
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - timeWindowDays);
+    
+    const formatDate = (d: Date) => d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    const timeWindowLabel = timeWindowDays === 30 ? 'Last 30 Days' 
+      : timeWindowDays === 90 ? 'Last 90 Days (Quarter)'
+      : timeWindowDays === 180 ? 'Last 6 Months'
+      : 'Last 12 Months';
+    
+    const dateRangeStr = `${formatDate(startDate)} - ${formatDate(endDate)}`;
+    
     let summary = `
 ## Boon Coaching Program Data for ${companyName}
 
+### Time Period: ${timeWindowLabel}
+Date Range: ${dateRangeStr}
+
 ### Program Overview
 - Program Type: ${programType}
-- Total Coaching Sessions: ${totalSessions}
+- Total Coaching Sessions: ${totalSessions} (during this period)
 - Unique Participants: ${uniqueParticipants}
-- Adoption Rate: ${(adoptionRate * 100).toFixed(1)}%
+- Adoption Rate: ${adoptionRate.toFixed(1)}%
 - Average Sessions per Active User: ${avgSessionsPerUser.toFixed(1)}
 
 ### Coaching Session Themes (What employees are working on)
@@ -88,11 +106,15 @@ const AIInsights: React.FC<AIInsightsProps> = ({
       const prodChange = wellbeingCurrent.productivity - wellbeingBaseline.productivity;
       const wlbChange = wellbeingCurrent.workLifeBalance - wellbeingBaseline.workLifeBalance;
       
+      const satPct = wellbeingBaseline.satisfaction > 0 ? ((satChange / wellbeingBaseline.satisfaction) * 100).toFixed(0) : 'N/A';
+      const prodPct = wellbeingBaseline.productivity > 0 ? ((prodChange / wellbeingBaseline.productivity) * 100).toFixed(0) : 'N/A';
+      const wlbPct = wellbeingBaseline.workLifeBalance > 0 ? ((wlbChange / wellbeingBaseline.workLifeBalance) * 100).toFixed(0) : 'N/A';
+      
       summary += `
 ### Wellbeing Changes (Baseline → Current, scale 1-10)
-- Job Satisfaction: ${wellbeingBaseline.satisfaction.toFixed(1)} → ${wellbeingCurrent.satisfaction.toFixed(1)} (${satChange >= 0 ? '+' : ''}${satChange.toFixed(1)})
-- Productivity: ${wellbeingBaseline.productivity.toFixed(1)} → ${wellbeingCurrent.productivity.toFixed(1)} (${prodChange >= 0 ? '+' : ''}${prodChange.toFixed(1)})
-- Work-Life Balance: ${wellbeingBaseline.workLifeBalance.toFixed(1)} → ${wellbeingCurrent.workLifeBalance.toFixed(1)} (${wlbChange >= 0 ? '+' : ''}${wlbChange.toFixed(1)})
+- Job Satisfaction: ${wellbeingBaseline.satisfaction.toFixed(1)} → ${wellbeingCurrent.satisfaction.toFixed(1)} (${satChange >= 0 ? '+' : ''}${satPct}% improvement)
+- Productivity: ${wellbeingBaseline.productivity.toFixed(1)} → ${wellbeingCurrent.productivity.toFixed(1)} (${prodChange >= 0 ? '+' : ''}${prodPct}% improvement)
+- Work-Life Balance: ${wellbeingBaseline.workLifeBalance.toFixed(1)} → ${wellbeingCurrent.workLifeBalance.toFixed(1)} (${wlbChange >= 0 ? '+' : ''}${wlbPct}% improvement)
 `;
     }
 

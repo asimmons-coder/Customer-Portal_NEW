@@ -668,6 +668,7 @@ const ScaleDashboard: React.FC = () => {
           companyName={companyName}
           companyId={companyId}
           programType="SCALE"
+          timeWindowDays={windowDays}
           totalSessions={aiInsightsData.totalSessions}
           uniqueParticipants={aiInsightsData.uniqueParticipants}
           adoptionRate={aiInsightsData.adoptionRate}
