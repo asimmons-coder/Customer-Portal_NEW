@@ -51,6 +51,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   const [sessions, setSessions] = useState<SessionWithEmployee[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
+  const [welcomeSurveys, setWelcomeSurveys] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -93,6 +94,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -101,6 +103,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              companyId = override.id || companyId;
             }
           } catch {}
         }
@@ -110,6 +113,22 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           getEmployeeRoster(),
           getSurveyResponses()
         ]);
+        
+        // Fetch welcome survey data
+        let welcomeSurveyData: any[] = [];
+        if (companyId) {
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .eq('company_id', companyId);
+          welcomeSurveyData = wsData || [];
+        } else if (company) {
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .ilike('account', `%${company.split(' - ')[0]}%`);
+          welcomeSurveyData = wsData || [];
+        }
         
         // Helper to check if a value matches the company
         const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
@@ -135,16 +154,24 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         if (mounted) {
           // Filter by company AND exclude canceled sessions
           const filteredSessions = sessionsData.filter(s => {
+            // Prefer company_id match if available
+            if (companyId && (s as any).company_id === companyId) {
+              return !isCanceledSession(s.status || '');
+            }
             const matchesCompanyFilter = matchesCompany((s as any).account_name, (s as any).program_title);
             const isNotCanceled = !isCanceledSession(s.status || '');
             return matchesCompanyFilter && isNotCanceled;
           });
-          const filteredEmployees = rosterData.filter(e => matchesCompany((e as any).company_name) || matchesCompany((e as any).company));
+          const filteredEmployees = rosterData.filter(e => {
+            if (companyId && (e as any).company_id === companyId) return true;
+            return matchesCompany((e as any).company_name) || matchesCompany((e as any).company);
+          });
           const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name, (s as any).program_title));
           
           setSessions(filteredSessions || []);
           setEmployees(filteredEmployees || []);
           setSurveys(filteredSurveys || []);
+          setWelcomeSurveys(welcomeSurveyData || []);
           setError(null);
         }
       } catch (err: any) {
@@ -394,7 +421,12 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       total: number;
       latestSession: Date | null;
       email?: string;
+      status?: 'active' | 'pending_match';
+      welcomeSurveyDate?: Date;
     }>();
+
+    // Track emails that have sessions
+    const emailsWithSessions = new Set<string>();
 
     // 1. Initialize from Employees (Roster)
     employees.forEach(emp => {
@@ -437,7 +469,8 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           scheduled: 0,
           total: 0,
           latestSession: null,
-          email: email
+          email: email,
+          status: 'active'
         });
       }
     });
@@ -449,6 +482,8 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                    ? `${emp.first_name} ${emp.last_name || ''}`.trim()
                    : (session.employee_name || 'Unknown Employee');
       const email = emp?.email || emp?.company_email || (session as any).employee_email;
+      
+      if (email) emailsWithSessions.add(email.toLowerCase());
       
       if (name.toLowerCase() === 'kimberly genes') return;
       if (session.employee_id && hiddenEmployees.has(String(session.employee_id))) return;
@@ -479,7 +514,8 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           scheduled: 0,
           total: 0,
           latestSession: null,
-          email: email
+          email: email,
+          status: 'active'
         });
         matchedKey = key;
       }
@@ -488,6 +524,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       if (!entry.cohort && sessionCohort) entry.cohort = sessionCohort;
       if (entry.program === 'Unassigned' && sessionProgram) entry.program = sessionProgram;
       if (!entry.email && email) entry.email = email;
+      entry.status = 'active';
       // Session data takes precedence for name (since it has sessions tied to it)
       if (name && name !== 'Unknown Employee') {
         entry.name = name;
@@ -513,8 +550,52 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
       }
     });
 
+    // 3. Add welcome survey respondents who haven't had sessions yet (PENDING MATCH)
+    welcomeSurveys.forEach(ws => {
+      const email = ws.email?.toLowerCase();
+      const name = `${ws.first_name || ''} ${ws.last_name || ''}`.trim() || 'Unknown';
+      
+      if (!email) return;
+      if (hiddenEmployees.has(String(ws.id))) return;
+      
+      // Skip if they already have sessions
+      if (emailsWithSessions.has(email)) return;
+      
+      // Check if already in statsMap
+      const existingKey = findMatchingKey(statsMap, email, name);
+      
+      if (existingKey) {
+        // Already exists - just mark them and add welcome survey date
+        const existing = statsMap.get(existingKey)!;
+        if (existing.total === 0) {
+          existing.status = 'pending_match';
+          existing.welcomeSurveyDate = new Date(ws.created_at);
+          if (existing.program === 'Unassigned' && ws.program_title) {
+            existing.program = ws.program_title;
+          }
+        }
+      } else {
+        // New entry - they completed survey but aren't in employee roster yet
+        const key = email;
+        statsMap.set(key, {
+          id: `ws-${ws.id}`,
+          name: name,
+          program: ws.program_title || 'Unassigned',
+          cohort: '',
+          completed: 0,
+          noshow: 0,
+          scheduled: 0,
+          total: 0,
+          latestSession: null,
+          email: email,
+          status: 'pending_match',
+          welcomeSurveyDate: new Date(ws.created_at)
+        });
+      }
+    });
+
     return Array.from(statsMap.values());
-  }, [sessions, employees, filterType, filterValue, hiddenEmployees]);
+  }, [sessions, employees, welcomeSurveys, filterType, filterValue, hiddenEmployees]);
 
   // Get unique programs for filter dropdown
   const availablePrograms = useMemo(() => {
@@ -525,8 +606,8 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   // --- Filtering and Sorting Displayed Employees ---
   const filteredData = useMemo(() => {
     let result = aggregatedStats.filter(stat => {
-      // Only show employees who have at least one session (completed, scheduled, or no-show)
-      if (stat.total === 0) return false;
+      // Show employees who have sessions OR are pending match (completed welcome survey)
+      if (stat.total === 0 && stat.status !== 'pending_match') return false;
       
       const matchesSearch = stat.name.toLowerCase().includes(searchTerm.toLowerCase());
       
@@ -596,19 +677,21 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
   }, [surveys, filteredData, filterType]);
 
   // --- Derived KPIs ---
-  const totalEmployees = filteredData.length;
+  const totalEmployees = employees.length; // Total eligible employees
   const totalSessions = filteredData.reduce((acc, curr) => acc + curr.total, 0);
   const totalCompleted = filteredData.reduce((acc, curr) => acc + curr.completed, 0);
   
-  // FIX: avg sessions = (completed + no-shows) / totalEmployees
+  // FIX: avg sessions = (completed + no-shows) / employees with sessions
+  const employeesWithSessions = filteredData.filter(e => e.total > 0).length;
   const totalCompletedAndNoShows = filteredData.reduce((acc, curr) => acc + curr.completed + curr.noshow, 0);
-  const avgSessions = totalEmployees > 0 
-    ? (totalCompletedAndNoShows / totalEmployees).toFixed(1) 
+  const avgSessions = employeesWithSessions > 0 
+    ? (totalCompletedAndNoShows / employeesWithSessions).toFixed(1) 
     : '0.0';
 
-  const engagedEmployees = filteredData.filter(e => e.total > 0).length;
+  // Utilization = (welcome survey completions) / (total employees in roster)
+  const surveyCompletions = welcomeSurveys.length;
   const adoptionRate = totalEmployees > 0 
-    ? Math.round((engagedEmployees / totalEmployees) * 100) 
+    ? Math.round((surveyCompletions / totalEmployees) * 100) 
     : 0;
 
   if (loading) {
@@ -704,7 +787,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         
         <AdoptionMetricCard 
           rate={adoptionRate} 
-          engaged={engagedEmployees} 
+          engaged={surveyCompletions} 
           total={totalEmployees} 
         />
 
@@ -867,28 +950,33 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                   <tr 
                     key={emp.id} 
                     onClick={() => setSelectedStat(emp)}
-                    className="hover:bg-boon-blue/5 transition-colors group cursor-pointer"
+                    className={`hover:bg-boon-blue/5 transition-colors group cursor-pointer ${emp.status === 'pending_match' ? 'bg-amber-50/50' : ''}`}
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                         <div className="w-8 h-8 rounded-full bg-boon-lightBlue flex items-center justify-center text-xs font-bold text-boon-blue overflow-hidden shrink-0">
+                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold overflow-hidden shrink-0 ${emp.status === 'pending_match' ? 'bg-amber-100 text-amber-600' : 'bg-boon-lightBlue text-boon-blue'}`}>
                             {emp.avatar_url ? (
                               <img src={emp.avatar_url} alt="" className="w-full h-full object-cover"/>
                             ) : (
                               emp.name.substring(0,2).toUpperCase()
                             )}
                          </div>
-                         <span className="font-bold text-gray-800 text-sm whitespace-nowrap">{emp.name}</span>
+                         <div className="flex flex-col">
+                           <span className="font-bold text-gray-800 text-sm whitespace-nowrap">{emp.name}</span>
+                           {emp.status === 'pending_match' && (
+                             <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Pending Coach Match</span>
+                           )}
+                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex w-fit items-center px-2.5 py-1 rounded-md text-xs font-bold bg-boon-blue/10 text-boon-blue border border-boon-blue/20 uppercase tracking-wide">
-                        {getDisplayName(emp.program)}
+                      <span className={`inline-flex w-fit items-center px-2.5 py-1 rounded-md text-xs font-bold uppercase tracking-wide ${emp.status === 'pending_match' ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-boon-blue/10 text-boon-blue border border-boon-blue/20'}`}>
+                        {emp.status === 'pending_match' ? 'PENDING MATCH' : getDisplayName(emp.program)}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <div className="inline-flex items-center justify-center w-8 h-6 rounded-full bg-boon-green/20 text-boon-green font-bold text-sm">
-                        {emp.completed}
+                      <div className={`inline-flex items-center justify-center w-8 h-6 rounded-full font-bold text-sm ${emp.completed > 0 ? 'bg-boon-green/20 text-boon-green' : 'text-gray-300'}`}>
+                        {emp.completed || '-'}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-center">
@@ -906,7 +994,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
                       )}
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <span className="font-black text-boon-dark text-base">{emp.total}</span>
+                      <span className={`font-black text-base ${emp.total > 0 ? 'text-boon-dark' : 'text-gray-300'}`}>{emp.total || '-'}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button 
@@ -940,7 +1028,7 @@ const AdoptionMetricCard = ({ rate, engaged, total }: { rate: number, engaged: n
   const strokeWidth = 8;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
-  const offset = circumference - (rate / 100) * circumference;
+  const offset = circumference - (Math.min(rate, 100) / 100) * circumference;
 
   return (
     <div className="bg-boon-purple text-white rounded-2xl p-5 relative overflow-visible shadow-lg shadow-gray-200 transition-transform hover:-translate-y-1 group hover:z-50 w-full h-full flex flex-col justify-between">
@@ -954,12 +1042,12 @@ const AdoptionMetricCard = ({ rate, engaged, total }: { rate: number, engaged: n
                         <div className="absolute left-0 top-full mt-2 w-72 bg-boon-dark text-white text-xs p-4 rounded-xl shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all duration-200 z-[100] border border-gray-600 pointer-events-none hidden md:block">
                             <div className="font-bold text-sm text-boon-yellow mb-2">Program Utilization</div>
                             <p className="mb-3 leading-relaxed text-gray-300">
-                                <span className="text-white font-bold">{rate}%</span> of enrolled employees have attended at least one session.
+                                <span className="text-white font-bold">{engaged}</span> of <span className="text-white font-bold">{total}</span> eligible employees have completed the welcome survey and started onboarding.
                             </p>
                         </div>
                     </div>
                 </h4>
-                <span className="text-4xl font-extrabold tracking-tight mt-1">{rate}%</span>
+                <span className="text-4xl font-extrabold tracking-tight mt-1">{Math.min(rate, 100)}%</span>
                 <div className="w-8 h-1 rounded-full mt-auto bg-white/30"></div>
             </div>
             <div className="relative mt-2">
