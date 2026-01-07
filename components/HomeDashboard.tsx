@@ -9,7 +9,7 @@ import {
   HoverCard,
   AnimatedProgressBar,
   SkeletonDashboard
-} from './animations';
+} from './Animations';
 import { 
   getDashboardSessions, 
   getCompetencyScores, 
