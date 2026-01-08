@@ -172,13 +172,13 @@ const SetupDashboard: React.FC = () => {
 
           const { data: programData } = await supabase
             .from('program_config')
-            .select('program_start_date, program_status, sessions_per_employee, program_type, program_title, context_notes, selected_competencies')
+            .select('program_start_date, launch_date_override, program_status, sessions_per_employee, program_type, program_title, context_notes, selected_competencies')
             .eq('company_id', compId);
           
           if (programData && programData.length > 0) {
-            // Get earliest launch date from all programs
+            // Get earliest launch date from all programs (override takes precedence)
             const dates = programData
-              .map(p => p.program_start_date)
+              .map(p => p.launch_date_override || p.program_start_date)
               .filter(Boolean)
               .sort();
             if (dates.length > 0) {
@@ -793,7 +793,14 @@ const SetupDashboard: React.FC = () => {
           {contextNotes && (
             <div className="bg-white rounded-2xl p-6 border border-gray-200">
               <h3 className="font-bold text-gray-900 mb-3">Coach Context</h3>
-              <p className="text-sm text-gray-600 leading-relaxed">{contextNotes}</p>
+              <ul className="text-sm text-gray-600 leading-relaxed space-y-2">
+                {contextNotes.split('. ').filter(s => s.trim()).map((sentence, idx) => (
+                  <li key={idx} className="flex gap-2">
+                    <span className="text-boon-blue mt-1">•</span>
+                    <span>{sentence.trim().replace(/\.$/, '')}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
@@ -946,10 +953,11 @@ const SetupDashboard: React.FC = () => {
                   if (!companyId || !tempDate) return;
                   setSaving('launchDate');
                   try {
-                    // Update all programs for this company with the new launch date
+                    // Update launch_date_override for all programs for this company
+                    // This field takes precedence and syncs back to Salesforce via Zapier
                     await supabase
                       .from('program_config')
-                      .update({ program_start_date: tempDate })
+                      .update({ launch_date_override: tempDate })
                       .eq('company_id', companyId);
                     
                     setLaunchDate(tempDate);
