@@ -109,12 +109,15 @@ const SetupDashboard: React.FC = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [programs, setPrograms] = useState<Array<{type: string, sessions: number | null, title: string | null, status: string | null}>>([]);
   const [contextNotes, setContextNotes] = useState<string>('');
-  const [selectedCompetencies, setSelectedCompetencies] = useState<string[]>([
+  const [execCompetencies, setExecCompetencies] = useState<string[]>([
     'Visionary Leadership',
     'High-Stakes Decision Making',
     'Building and Leading High-Performing Teams',
     'Influence and Stakeholder Management',
   ]);
+  const [growCompetencies, setGrowCompetencies] = useState<string[]>([]);
+  const [execLetEmployeesChoose, setExecLetEmployeesChoose] = useState(false);
+  const [growLetEmployeesChoose, setGrowLetEmployeesChoose] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -184,10 +187,26 @@ const SetupDashboard: React.FC = () => {
               setContextNotes(notesProgram.context_notes);
             }
 
-            // Load saved competencies
-            const compProgram = programData.find(p => p.selected_competencies && p.selected_competencies.length > 0);
-            if (compProgram?.selected_competencies) {
-              setSelectedCompetencies(compProgram.selected_competencies);
+            // Load saved competencies per program type
+            const execProgram = programData.find(p => p.program_type === 'EXEC');
+            const growProgram = programData.find(p => p.program_type === 'GROW');
+            
+            if (execProgram?.selected_competencies && execProgram.selected_competencies.length > 0) {
+              if (execProgram.selected_competencies[0] === 'EMPLOYEE_CHOICE') {
+                setExecLetEmployeesChoose(true);
+                setExecCompetencies([]);
+              } else {
+                setExecCompetencies(execProgram.selected_competencies);
+              }
+            }
+            
+            if (growProgram?.selected_competencies && growProgram.selected_competencies.length > 0) {
+              if (growProgram.selected_competencies[0] === 'EMPLOYEE_CHOICE') {
+                setGrowLetEmployeesChoose(true);
+                setGrowCompetencies([]);
+              } else {
+                setGrowCompetencies(growProgram.selected_competencies);
+              }
             }
           }
         }
@@ -377,142 +396,192 @@ const SetupDashboard: React.FC = () => {
           {/* Development Focus Areas */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="p-6 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Development Focus Areas</h2>
-                  <p className="text-sm text-gray-500 mt-1">Select 3-5 topics to align with your organizational goals</p>
-                </div>
-                <div className="text-sm">
-                  <span className={`font-medium ${selectedCompetencies.length >= 3 && selectedCompetencies.length <= 5 ? 'text-boon-green' : 'text-amber-500'}`}>
-                    {selectedCompetencies.length}/5 selected
-                  </span>
-                </div>
-              </div>
+              <h2 className="text-lg font-bold text-gray-900">Development Focus Areas</h2>
+              <p className="text-sm text-gray-500 mt-1">Select 3-5 topics per program, or let employees choose their own</p>
             </div>
-            <div className="p-6">
+            <div className="p-6 space-y-8">
               {programs.some(p => p.type === 'EXEC') && (
-                <div className="mb-6">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">EXEC</span>
-                    Executive Leadership Topics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {EXEC_COMPETENCIES.map((comp) => {
-                      const isSelected = selectedCompetencies.includes(comp);
-                      const canSelect = selectedCompetencies.length < 5 || isSelected;
-                      return (
-                        <button
-                          key={comp}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedCompetencies(prev => prev.filter(c => c !== comp));
-                            } else if (canSelect) {
-                              setSelectedCompetencies(prev => [...prev, comp]);
-                            }
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">EXEC</span>
+                      Executive Leadership Topics
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      {!execLetEmployeesChoose && (
+                        <span className={`text-xs font-medium ${execCompetencies.length >= 3 && execCompetencies.length <= 5 ? 'text-boon-green' : 'text-amber-500'}`}>
+                          {execCompetencies.length}/5 selected
+                        </span>
+                      )}
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={execLetEmployeesChoose}
+                          onChange={(e) => {
+                            setExecLetEmployeesChoose(e.target.checked);
+                            if (e.target.checked) setExecCompetencies([]);
                           }}
-                          disabled={!canSelect && !isSelected}
-                          className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
-                            isSelected 
-                              ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
-                              : canSelect
-                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {comp}
-                        </button>
-                      );
-                    })}
+                          className="w-4 h-4 rounded border-gray-300 text-boon-blue focus:ring-boon-blue"
+                        />
+                        Let employees choose
+                      </label>
+                    </div>
                   </div>
+                  {!execLetEmployeesChoose ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {EXEC_COMPETENCIES.map((comp) => {
+                        const isSelected = execCompetencies.includes(comp);
+                        const canSelect = execCompetencies.length < 5 || isSelected;
+                        return (
+                          <button
+                            key={comp}
+                            onClick={() => {
+                              if (isSelected) {
+                                setExecCompetencies(prev => prev.filter(c => c !== comp));
+                              } else if (canSelect) {
+                                setExecCompetencies(prev => [...prev, comp]);
+                              }
+                            }}
+                            disabled={!canSelect && !isSelected}
+                            className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
+                              isSelected 
+                                ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
+                                : canSelect
+                                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {comp}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="bg-blue-50 rounded-xl p-4 text-sm text-blue-700">
+                      <p>Employees will select their own focus areas during onboarding. All 12 executive topics will be available for them to choose from.</p>
+                    </div>
+                  )}
                 </div>
               )}
               
               {programs.some(p => p.type === 'GROW') && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">GROW</span>
-                    Leadership Development Topics
-                  </h3>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {GROW_COMPETENCIES.map((comp) => {
-                      const isSelected = selectedCompetencies.includes(comp);
-                      const canSelect = selectedCompetencies.length < 5 || isSelected;
-                      return (
-                        <button
-                          key={comp}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedCompetencies(prev => prev.filter(c => c !== comp));
-                            } else if (canSelect) {
-                              setSelectedCompetencies(prev => [...prev, comp]);
-                            }
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">GROW</span>
+                      Leadership Development Topics
+                    </h3>
+                    <div className="flex items-center gap-3">
+                      {!growLetEmployeesChoose && (
+                        <span className={`text-xs font-medium ${growCompetencies.length >= 3 && growCompetencies.length <= 5 ? 'text-boon-green' : 'text-amber-500'}`}>
+                          {growCompetencies.length}/5 selected
+                        </span>
+                      )}
+                      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={growLetEmployeesChoose}
+                          onChange={(e) => {
+                            setGrowLetEmployeesChoose(e.target.checked);
+                            if (e.target.checked) setGrowCompetencies([]);
                           }}
-                          disabled={!canSelect && !isSelected}
-                          className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
-                            isSelected 
-                              ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
-                              : canSelect
-                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {comp}
-                        </button>
-                      );
-                    })}
+                          className="w-4 h-4 rounded border-gray-300 text-boon-blue focus:ring-boon-blue"
+                        />
+                        Let employees choose
+                      </label>
+                    </div>
                   </div>
+                  {!growLetEmployeesChoose ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {GROW_COMPETENCIES.map((comp) => {
+                        const isSelected = growCompetencies.includes(comp);
+                        const canSelect = growCompetencies.length < 5 || isSelected;
+                        return (
+                          <button
+                            key={comp}
+                            onClick={() => {
+                              if (isSelected) {
+                                setGrowCompetencies(prev => prev.filter(c => c !== comp));
+                              } else if (canSelect) {
+                                setGrowCompetencies(prev => [...prev, comp]);
+                              }
+                            }}
+                            disabled={!canSelect && !isSelected}
+                            className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
+                              isSelected 
+                                ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
+                                : canSelect
+                                  ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                  : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                            }`}
+                          >
+                            {comp}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="bg-green-50 rounded-xl p-4 text-sm text-green-700">
+                      <p>Employees will select their own focus areas during onboarding. All 12 leadership topics will be available for them to choose from.</p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {selectedCompetencies.length > 0 && (
-                <div className="mt-6 pt-6 border-t border-gray-100">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-700">Selected Focus Areas</h4>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {selectedCompetencies.map(comp => (
-                          <span key={comp} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
-                            {comp}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        if (!companyId) return;
-                        setSaving('competencies');
-                        try {
-                          await supabase
-                            .from('program_config')
-                            .update({ selected_competencies: selectedCompetencies })
-                            .eq('company_id', companyId);
-                          // Also mark the task as complete
-                          await supabase
-                            .from('onboarding_tasks')
-                            .upsert({
-                              company_id: companyId,
-                              task_id: 'confirm_competencies',
-                              completed: true,
-                              completed_at: new Date().toISOString(),
-                            }, { onConflict: 'company_id,task_id' });
-                          setTaskCompletions(prev => ({ ...prev, confirm_competencies: true }));
-                        } catch (err) {
-                          console.error('Failed to save competencies:', err);
-                        }
-                        setSaving(null);
-                      }}
-                      disabled={saving === 'competencies' || selectedCompetencies.length < 3}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                        selectedCompetencies.length >= 3
-                          ? 'bg-boon-blue text-white hover:bg-boon-darkBlue'
-                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      }`}
-                    >
-                      {saving === 'competencies' ? 'Saving...' : 'Save Selection'}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* Save Button */}
+              <div className="pt-4 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={async () => {
+                    if (!companyId) return;
+                    setSaving('competencies');
+                    try {
+                      // Save EXEC competencies
+                      const execProgram = programs.find(p => p.type === 'EXEC');
+                      if (execProgram) {
+                        const execValue = execLetEmployeesChoose ? ['EMPLOYEE_CHOICE'] : execCompetencies;
+                        await supabase
+                          .from('program_config')
+                          .update({ selected_competencies: execValue })
+                          .eq('company_id', companyId)
+                          .eq('program_type', 'EXEC');
+                      }
+                      
+                      // Save GROW competencies
+                      const growProgram = programs.find(p => p.type === 'GROW');
+                      if (growProgram) {
+                        const growValue = growLetEmployeesChoose ? ['EMPLOYEE_CHOICE'] : growCompetencies;
+                        await supabase
+                          .from('program_config')
+                          .update({ selected_competencies: growValue })
+                          .eq('company_id', companyId)
+                          .eq('program_type', 'GROW');
+                      }
+                      
+                      // Mark task as complete
+                      await supabase
+                        .from('onboarding_tasks')
+                        .upsert({
+                          company_id: companyId,
+                          task_id: 'confirm_competencies',
+                          completed: true,
+                          completed_at: new Date().toISOString(),
+                        }, { onConflict: 'company_id,task_id' });
+                      setTaskCompletions(prev => ({ ...prev, confirm_competencies: true }));
+                    } catch (err) {
+                      console.error('Failed to save competencies:', err);
+                    }
+                    setSaving(null);
+                  }}
+                  disabled={saving === 'competencies' || (
+                    !execLetEmployeesChoose && programs.some(p => p.type === 'EXEC') && (execCompetencies.length < 3 || execCompetencies.length > 5)
+                  ) || (
+                    !growLetEmployeesChoose && programs.some(p => p.type === 'GROW') && (growCompetencies.length < 3 || growCompetencies.length > 5)
+                  )}
+                  className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed"
+                >
+                  {saving === 'competencies' ? 'Saving...' : 'Save Focus Areas'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
