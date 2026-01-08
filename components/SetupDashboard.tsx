@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket } from 'lucide-react';
+import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket, X, Copy, Mail, Check } from 'lucide-react';
 
 const TASK_CATEGORIES = [
   {
@@ -28,8 +28,7 @@ const TASK_CATEGORIES = [
     label: 'Security & Comms',
     icon: Shield,
     tasks: [
-      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Download', actionType: 'allowlist' },
-      { id: 'trusted_senders', label: 'Add boon-health.com to email allowlist (Outlook, Google Workspace, Microsoft 365)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Setup Guide', actionType: 'allowlist_modal' },
       { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: null, actionType: 'checkbox' },
       { id: 'confirm_comms_channel', label: 'Confirm internal comms channel (Slack, Teams, or Email)', actionLabel: null, actionType: 'checkbox' },
     ]
@@ -126,6 +125,9 @@ const SetupDashboard: React.FC = () => {
     calendly_url: string | null;
     is_primary: boolean;
   }>>([]);
+  const [showAllowlistModal, setShowAllowlistModal] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<'default' | 'microsoft' | 'google'>('default');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -415,7 +417,7 @@ const SetupDashboard: React.FC = () => {
                                 </span>
                               </div>
                               {task.actionLabel && !isComplete && (
-                                <TaskActionButton task={task} />
+                                <TaskActionButton task={task} onAllowlistClick={() => setShowAllowlistModal(true)} />
                               )}
                             </div>
                           );
@@ -788,6 +790,106 @@ const SetupDashboard: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Safe Sender Setup Modal */}
+      {showAllowlistModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Safe Sender Setup Guide</h2>
+                <p className="text-sm text-gray-500 mt-1">Send this to your IT contact to ensure Boon emails land correctly</p>
+              </div>
+              <button 
+                onClick={() => setShowAllowlistModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Provider Selection */}
+            <div className="p-6 border-b border-gray-100">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Select email provider</label>
+              <div className="flex gap-2">
+                {[
+                  { id: 'default', label: 'Unknown / Other' },
+                  { id: 'microsoft', label: 'Microsoft 365 / Outlook' },
+                  { id: 'google', label: 'Google Workspace' },
+                ].map((provider) => (
+                  <button
+                    key={provider.id}
+                    onClick={() => {
+                      setSelectedProvider(provider.id as any);
+                      setCopied(false);
+                    }}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      selectedProvider === provider.id
+                        ? 'bg-boon-blue text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {provider.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Email Template */}
+            <div className="p-6 flex-1 overflow-y-auto">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Subject</label>
+                  <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-900 font-medium">
+                    {SAFE_SENDER_EMAILS[selectedProvider].subject}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase mb-1">Email Body</label>
+                  <div className="p-4 bg-gray-50 rounded-lg text-sm text-gray-700 whitespace-pre-wrap font-mono leading-relaxed">
+                    {SAFE_SENDER_EMAILS[selectedProvider].body}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 border-t border-gray-100 flex items-center justify-between gap-4">
+              <button
+                onClick={() => {
+                  const blob = new Blob([ALLOWLIST_CONTENT], { type: 'text/plain' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'Boon_Email_Allowlist.txt';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors flex items-center gap-2"
+              >
+                <Download size={16} />
+                Download Allowlist
+              </button>
+              <button
+                onClick={() => {
+                  const template = SAFE_SENDER_EMAILS[selectedProvider];
+                  const fullText = `Subject: ${template.subject}\n\n${template.body}`;
+                  navigator.clipboard.writeText(fullText);
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+                className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors flex items-center gap-2"
+              >
+                {copied ? <Check size={16} /> : <Copy size={16} />}
+                {copied ? 'Copied!' : 'Copy Email Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -848,7 +950,65 @@ EMAIL SUBJECT LINES TO ALLOW
 • Coaching Session Cancellation
 `;
 
-const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
+const SAFE_SENDER_EMAILS = {
+  default: {
+    subject: 'Quick IT setup to ensure Boon emails land correctly',
+    body: `Hi [Name],
+
+Quick operational ask to make sure Boon program emails and surveys land cleanly for your team.
+
+Could you please forward the attached Boon allow-list one-pager to your IT team and ask them to confirm the following?
+
+1. Boon is allow-listed at the tenant or org level (not just individual inboxes), so emails reach all participants consistently.
+2. Boon domains are excluded from link rewriting or scanning that could interfere with survey links.
+3. Allow-listed Boon emails bypass quarantine, or IT is notified if anything is flagged.
+
+Once that's in place, we should be set for the remainder of the program.
+
+Happy to connect Boon directly with IT if helpful. Thanks so much.
+
+Best,
+[AM Name]`
+  },
+  microsoft: {
+    subject: 'Quick Outlook setup to ensure Boon emails land correctly',
+    body: `Hi [Name],
+
+Quick operational ask to make sure Boon program emails and surveys land cleanly for your team, especially in Outlook.
+
+Could you please forward the attached Boon allow-list one-pager to your IT team and ask them to confirm the following?
+
+1. Boon is allow-listed at the Exchange / Defender tenant level, not just individual inboxes.
+2. Boon domains are excluded from Outlook Safe Links rewriting, which can occasionally interfere with survey links.
+3. Allow-listed Boon emails bypass quarantine, or IT is notified if anything is flagged.
+
+Once that's in place, we should be set for the remainder of the program.
+
+Happy to connect Boon directly with IT if helpful. Thanks so much.
+
+Best,
+[AM Name]`
+  },
+  google: {
+    subject: 'Quick email setup to ensure Boon emails land correctly',
+    body: `Hi [Name],
+
+Quick operational ask to make sure Boon program emails and surveys land cleanly for your team.
+
+Could you please forward the attached Boon allow-list one-pager to your IT team and ask them to confirm the following?
+
+1. Boon domains are approved / allow-listed at the workspace level, not just per user.
+2. Emails from Boon bypass spam and quarantine filtering where possible.
+3. IT is notified if any Boon emails are flagged unexpectedly.
+
+Once that's in place, we should be set for the remainder of the program.
+
+Thanks so much,
+[AM Name]`
+  }
+};
+
+const TaskActionButton: React.FC<{ task: any; onAllowlistClick?: () => void }> = ({ task, onAllowlistClick }) => {
   const handleClick = () => {
     if (task.actionType === 'link' && task.actionUrl) {
       window.location.href = task.actionUrl;
@@ -863,6 +1023,8 @@ const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+    } else if (task.actionType === 'allowlist_modal' && onAllowlistClick) {
+      onAllowlistClick();
     } else if (task.actionType === 'download' && task.downloadUrl) {
       window.open(task.downloadUrl, '_blank');
     } else {
@@ -876,6 +1038,7 @@ const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
       className="px-3 py-1.5 text-xs font-medium text-boon-blue bg-boon-blue/10 rounded-lg hover:bg-boon-blue/20 transition-colors flex items-center gap-1"
     >
       {(task.actionType === 'download' || task.actionType === 'allowlist') && <Download size={12} />}
+      {task.actionType === 'allowlist_modal' && <Mail size={12} />}
       {task.actionType === 'link' && <ExternalLink size={12} />}
       {task.actionLabel}
     </button>
