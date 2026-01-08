@@ -1140,14 +1140,24 @@ const BatchUploadModal = ({
               <p className="text-gray-400 text-xs mt-4">
                 Required columns: first_name, last_name, company_email
               </p>
-              <a 
-                href="/employee_upload_template.csv" 
-                download="employee_upload_template.csv"
+              <button 
+                onClick={() => {
+                  const csvContent = 'first_name,last_name,company_email,department,job_title,company_role\nJohn,Doe,john.doe@company.com,Engineering,Software Engineer,Individual Contributor\nJane,Smith,jane.smith@company.com,Marketing,Marketing Manager,Manager';
+                  const blob = new Blob([csvContent], { type: 'text/csv' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = 'employee_upload_template.csv';
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }}
                 className="inline-flex items-center gap-1 text-xs text-boon-blue hover:underline mt-2"
               >
                 <Download size={14} />
                 Download template
-              </a>
+              </button>
             </div>
           )}
 
