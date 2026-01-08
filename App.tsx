@@ -272,14 +272,16 @@ const MainPortalLayout: React.FC = () => {
         }
         
         // If we have a company_id, check program_config for onboarding status
+        // Check ALL programs for this company - show Setup only if ANY are in Onboarding
         if (companyId) {
           const { data: programData } = await supabase
             .from('program_config')
             .select('program_status')
-            .eq('company_id', companyId)
-            .maybeSingle();
+            .eq('company_id', companyId);
           
-          if (programData?.program_status?.toLowerCase() === 'onboarding') {
+          // Show Setup only if at least one program is in Onboarding status
+          const hasOnboarding = programData?.some(p => p.program_status?.toLowerCase() === 'onboarding');
+          if (hasOnboarding) {
             setShowSetup(true);
           }
         } else if (companyBase) {
@@ -287,10 +289,10 @@ const MainPortalLayout: React.FC = () => {
           const { data: programData } = await supabase
             .from('program_config')
             .select('program_status')
-            .ilike('account_name', `%${companyBase}%`)
-            .maybeSingle();
+            .ilike('account_name', `%${companyBase}%`);
           
-          if (programData?.program_status?.toLowerCase() === 'onboarding') {
+          const hasOnboarding = programData?.some(p => p.program_status?.toLowerCase() === 'onboarding');
+          if (hasOnboarding) {
             setShowSetup(true);
           }
         }

@@ -8,7 +8,7 @@ const TASK_CATEGORIES = [
     label: 'Account Setup',
     icon: Users,
     tasks: [
-      { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Upload CSV', actionType: 'link', actionUrl: '/employees' },
+      { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Employees', actionType: 'link', actionUrl: '/employees' },
       { id: 'upload_eap', label: 'Share EAP/mental health benefits info (optional)', actionLabel: 'Upload', actionType: 'upload' },
     ]
   },
@@ -28,10 +28,10 @@ const TASK_CATEGORIES = [
     label: 'Security & Comms',
     icon: Shield,
     tasks: [
-      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Download', actionType: 'download', downloadUrl: '/files/boon-allow-list.pdf' },
-      { id: 'trusted_senders', label: 'Add boon-health.com to trusted senders', actionLabel: null, actionType: 'checkbox' },
+      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Download PDF', actionType: 'allowlist' },
+      { id: 'trusted_senders', label: 'Add boon-health.com to Outlook trusted senders', actionLabel: null, actionType: 'checkbox' },
       { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: 'Add Emails', actionType: 'modal' },
-      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel (Slack/Teams/Email)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel', actionLabel: 'Select', actionType: 'comms_dropdown', options: ['Slack', 'Microsoft Teams', 'Google Chat', 'Email Only'] },
     ]
   },
   {
@@ -77,6 +77,7 @@ const SetupDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [launchDate, setLaunchDate] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
+  const [programInfo, setProgramInfo] = useState<{type: string, sessions: number | null}>({ type: '', sessions: null });
 
   useEffect(() => {
     const fetchData = async () => {
@@ -125,6 +126,12 @@ const SetupDashboard: React.FC = () => {
           
           if (programData?.program_start_date) {
             setLaunchDate(programData.program_start_date);
+          }
+          if (programData) {
+            setProgramInfo({
+              type: programData.program_type || 'SCALE',
+              sessions: programData.sessions_per_employee || null
+            });
           }
         }
       } catch (err) {
@@ -383,12 +390,14 @@ const SetupDashboard: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Program Type</span>
-                <span className="font-medium text-gray-900">SCALE</span>
+                <span className="font-medium text-gray-900">{programInfo.type || 'SCALE'}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Sessions/Person</span>
-                <span className="font-medium text-gray-900">6</span>
-              </div>
+              {programInfo.sessions && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Sessions/Person</span>
+                  <span className="font-medium text-gray-900">{programInfo.sessions}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -397,10 +406,77 @@ const SetupDashboard: React.FC = () => {
   );
 };
 
+const ALLOWLIST_CONTENT = `BOON EMAIL ALLOWLIST
+
+Please add the following domain, emails, and IP addresses to your safe sender list:
+
+DOMAINS
+• boon-health.com
+• news.boon-health.com
+
+NOTE: If your company uses Outlook, please add the boon-health.com domain to your user's Outlook trusted senders list
+
+IP ADDRESSES
+• 54.174.60.0/23
+• 143.244.80.0/20
+• 158.247.16.0/20
+• 54.174.59.0/24
+• 54.174.63.0/24
+• 3.93.157.0/24
+• 54.174.52.0/24
+• 139.180.17.0/24
+• 54.174.57.0/24
+• 158.247.26.128
+• 18.208.124.128/25
+• 54.174.53.128/30
+• 74.125.195.26
+• 149.72.90.69
+• 149.72.227.216
+• 149.72.242.200
+• 168.245.51.104
+• 198.37.159.6
+• 149.72.52.197
+
+IP ADDRESSES ADDED IN 2025
+• 141.193.184.64/26
+• 141.193.185.128/25
+• 18.208.124.128/25
+• 141.193.184.128/25
+• 141.193.185.64/26
+• 216.139.64.0/19
+• 108.179.144.0/20
+• 3.210.190.0/24
+• 141.193.184.32/27
+• 141.193.185.32/27
+• 3.210.190.215
+
+EMAIL SUBJECT LINES TO ALLOW
+• You've been given access to Boon Coaching
+• Welcome to Boon! Get started on your personal and professional growth
+• Free coaching that really works
+• [Name] - We have personalized Boon coaching options ready for you.
+• [Name] - Book your first Boon coaching session today!
+• [Name] - Your Coaching Session with Jamie is Confirmed!
+• [Name] - Your Coaching Session with Boon has been rescheduled!
+• Boon Coaching Session Reminder
+• Coaching Session Cancellation
+`;
+
 const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
   const handleClick = () => {
     if (task.actionType === 'link' && task.actionUrl) {
       window.location.href = task.actionUrl;
+    } else if (task.actionType === 'allowlist') {
+      // Download allowlist as text file
+      const blob = new Blob([ALLOWLIST_CONTENT], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Boon_Email_Allowlist.txt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } else if (task.actionType === 'download' && task.downloadUrl) {
       window.open(task.downloadUrl, '_blank');
     } else {
@@ -413,7 +489,7 @@ const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
       onClick={handleClick}
       className="px-3 py-1.5 text-xs font-medium text-boon-blue bg-boon-blue/10 rounded-lg hover:bg-boon-blue/20 transition-colors flex items-center gap-1"
     >
-      {task.actionType === 'download' && <Download size={12} />}
+      {(task.actionType === 'download' || task.actionType === 'allowlist') && <Download size={12} />}
       {task.actionType === 'link' && <ExternalLink size={12} />}
       {task.actionLabel}
     </button>
