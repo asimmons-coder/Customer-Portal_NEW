@@ -77,7 +77,8 @@ const SetupDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [launchDate, setLaunchDate] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
-  const [programInfo, setProgramInfo] = useState<{type: string, sessions: number | null}>({ type: '', sessions: null });
+  const [programs, setPrograms] = useState<Array<{type: string, sessions: number | null, title: string | null, status: string | null}>>([]);
+  const [contextNotes, setContextNotes] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -120,18 +121,32 @@ const SetupDashboard: React.FC = () => {
 
           const { data: programData } = await supabase
             .from('program_config')
-            .select('program_start_date, program_status, sessions_per_employee, program_type')
-            .eq('company_id', compId)
-            .maybeSingle();
+            .select('program_start_date, program_status, sessions_per_employee, program_type, program_title, context_notes')
+            .eq('company_id', compId);
           
-          if (programData?.program_start_date) {
-            setLaunchDate(programData.program_start_date);
-          }
-          if (programData) {
-            setProgramInfo({
-              type: programData.program_type || 'SCALE',
-              sessions: programData.sessions_per_employee || null
-            });
+          if (programData && programData.length > 0) {
+            // Get earliest launch date from all programs
+            const dates = programData
+              .map(p => p.program_start_date)
+              .filter(Boolean)
+              .sort();
+            if (dates.length > 0) {
+              setLaunchDate(dates[0]);
+            }
+            
+            // Set all programs
+            setPrograms(programData.map(p => ({
+              type: p.program_type || '',
+              sessions: p.sessions_per_employee || null,
+              title: p.program_title || null,
+              status: p.program_status || null
+            })));
+            
+            // Get context notes from first program that has them
+            const notesProgram = programData.find(p => p.context_notes);
+            if (notesProgram?.context_notes) {
+              setContextNotes(notesProgram.context_notes);
+            }
           }
         }
       } catch (err) {
@@ -390,16 +405,47 @@ const SetupDashboard: React.FC = () => {
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Program Type</span>
-                <span className="font-medium text-gray-900">{programInfo.type || 'SCALE'}</span>
+                <span className="font-medium text-gray-900">
+                  {programs.length > 0 
+                    ? [...new Set(programs.map(p => p.type))].join(', ') 
+                    : 'Not configured'}
+                </span>
               </div>
-              {programInfo.sessions && (
+              {programs.length > 0 && programs[0].sessions && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Sessions/Person</span>
-                  <span className="font-medium text-gray-900">{programInfo.sessions}</span>
+                  <span className="font-medium text-gray-900">{programs[0].sessions}</span>
+                </div>
+              )}
+              {programs.length > 1 && (
+                <div className="pt-2 border-t border-gray-200 mt-2">
+                  <span className="text-gray-500 text-xs">Programs:</span>
+                  <div className="mt-1 space-y-1">
+                    {programs.map((p, i) => (
+                      <div key={i} className="flex justify-between text-xs">
+                        <span className="text-gray-600">{p.title || p.type}</span>
+                        <span className={`px-2 py-0.5 rounded-full ${
+                          p.status === 'Onboarding' ? 'bg-blue-100 text-blue-700' :
+                          p.status === 'In Progress' ? 'bg-green-100 text-green-700' :
+                          p.status === 'Planned' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {p.status || 'Pending'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           </div>
+
+          {contextNotes && (
+            <div className="bg-white rounded-2xl p-6 border border-gray-200">
+              <h3 className="font-bold text-gray-900 mb-3">Coach Context</h3>
+              <p className="text-sm text-gray-600 leading-relaxed">{contextNotes}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
