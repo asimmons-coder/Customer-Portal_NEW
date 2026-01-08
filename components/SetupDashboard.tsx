@@ -683,9 +683,9 @@ const SetupDashboard: React.FC = () => {
                       Schedule a Call
                     </a>
                   )}
-                  {accountTeam.find(m => m.email) && (
+                  {accountTeam.some(m => m.email) && (
                     <a 
-                      href={`mailto:${accountTeam.find(m => m.is_primary)?.email || accountTeam[0]?.email}`}
+                      href={`mailto:${accountTeam.filter(m => m.email).map(m => m.email).join(',')}`}
                       className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors text-center"
                     >
                       Send a Message
