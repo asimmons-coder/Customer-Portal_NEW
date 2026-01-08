@@ -118,6 +118,14 @@ const SetupDashboard: React.FC = () => {
   const [growCompetencies, setGrowCompetencies] = useState<string[]>([]);
   const [execLetEmployeesChoose, setExecLetEmployeesChoose] = useState(false);
   const [growLetEmployeesChoose, setGrowLetEmployeesChoose] = useState(false);
+  const [accountTeam, setAccountTeam] = useState<Array<{
+    name: string;
+    title: string;
+    email: string | null;
+    photo_url: string | null;
+    calendly_url: string | null;
+    is_primary: boolean;
+  }>>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -208,6 +216,33 @@ const SetupDashboard: React.FC = () => {
                 setGrowCompetencies(growProgram.selected_competencies);
               }
             }
+          }
+
+          // Fetch account team for this company
+          const { data: teamData } = await supabase
+            .from('company_account_team')
+            .select(`
+              is_primary,
+              account_team_members (
+                name,
+                title,
+                email,
+                photo_url,
+                calendly_url
+              )
+            `)
+            .eq('company_id', compId)
+            .order('is_primary', { ascending: false });
+
+          if (teamData && teamData.length > 0) {
+            setAccountTeam(teamData.map((t: any) => ({
+              name: t.account_team_members.name,
+              title: t.account_team_members.title,
+              email: t.account_team_members.email,
+              photo_url: t.account_team_members.photo_url,
+              calendly_url: t.account_team_members.calendly_url,
+              is_primary: t.is_primary,
+            })));
           }
         }
       } catch (err) {
@@ -612,31 +647,55 @@ const SetupDashboard: React.FC = () => {
 
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Your Boon Team</h3>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-boon-blue/10 flex items-center justify-center text-boon-blue font-bold">
-                AS
-              </div>
-              <div>
-                <p className="font-semibold text-gray-900">Alex Simmons</p>
-                <p className="text-sm text-gray-500">Account Lead</p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <a 
-                href="https://calendly.com/asimmons-boon/30min"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors text-center"
-              >
-                Schedule a Call
-              </a>
-              <a 
-                href="mailto:asimmons@boon-health.com"
-                className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors text-center"
-              >
-                Send a Message
-              </a>
-            </div>
+            
+            {accountTeam.length > 0 ? (
+              <>
+                <div className="space-y-4 mb-4">
+                  {accountTeam.map((member, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      {member.photo_url ? (
+                        <img 
+                          src={member.photo_url} 
+                          alt={member.name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-boon-blue/10 flex items-center justify-center text-boon-blue font-bold">
+                          {member.name.split(' ').map(n => n[0]).join('')}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-semibold text-gray-900">{member.name}</p>
+                        <p className="text-sm text-gray-500">{member.title}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <div className="space-y-2">
+                  {accountTeam.find(m => m.calendly_url) && (
+                    <a 
+                      href={accountTeam.find(m => m.calendly_url)?.calendly_url || '#'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors text-center"
+                    >
+                      Schedule a Call
+                    </a>
+                  )}
+                  {accountTeam.find(m => m.email) && (
+                    <a 
+                      href={`mailto:${accountTeam.find(m => m.is_primary)?.email || accountTeam[0]?.email}`}
+                      className="block w-full py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors text-center"
+                    >
+                      Send a Message
+                    </a>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-500">No team assigned yet.</p>
+            )}
           </div>
 
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
