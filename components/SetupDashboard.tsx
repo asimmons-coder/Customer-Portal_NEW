@@ -128,6 +128,8 @@ const SetupDashboard: React.FC = () => {
   const [showAllowlistModal, setShowAllowlistModal] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState<'default' | 'microsoft' | 'google'>('default');
   const [copied, setCopied] = useState(false);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [tempDate, setTempDate] = useState<string>('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -636,13 +638,19 @@ const SetupDashboard: React.FC = () => {
                   {new Date(launchDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
                 <p className="text-blue-200 text-sm">
-                  {daysUntilLaunch === 0 ? 'Today!' : `${daysUntilLaunch} days from now`}
+                  {daysUntilLaunch === 0 ? 'Today!' : daysUntilLaunch > 0 ? `${daysUntilLaunch} days from now` : `${Math.abs(daysUntilLaunch)} days ago`}
                 </p>
               </>
             ) : (
               <p className="text-xl font-bold mb-1">Not yet scheduled</p>
             )}
-            <button className="mt-4 w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors">
+            <button 
+              onClick={() => {
+                setTempDate(launchDate || '');
+                setShowDateModal(true);
+              }}
+              className="mt-4 w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors"
+            >
               {launchDate ? 'Change Date' : 'Schedule Launch'}
             </button>
           </div>
@@ -885,6 +893,87 @@ const SetupDashboard: React.FC = () => {
               >
                 {copied ? <Check size={16} /> : <Copy size={16} />}
                 {copied ? 'Copied!' : 'Copy Email Template'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Launch Date Modal */}
+      {showDateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Set Launch Date</h2>
+                <p className="text-sm text-gray-500 mt-1">When should the program begin?</p>
+              </div>
+              <button 
+                onClick={() => setShowDateModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-gray-500" />
+              </button>
+            </div>
+
+            {/* Date Input */}
+            <div className="p-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Launch Date</label>
+              <input
+                type="date"
+                value={tempDate}
+                onChange={(e) => setTempDate(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+              />
+              {tempDate && (
+                <p className="mt-2 text-sm text-gray-500">
+                  {new Date(tempDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowDateModal(false)}
+                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  if (!companyId || !tempDate) return;
+                  setSaving('launchDate');
+                  try {
+                    // Update all programs for this company with the new launch date
+                    await supabase
+                      .from('program_config')
+                      .update({ program_start_date: tempDate })
+                      .eq('company_id', companyId);
+                    
+                    setLaunchDate(tempDate);
+                    setShowDateModal(false);
+                    
+                    // Mark the schedule launch task as complete
+                    await supabase
+                      .from('onboarding_tasks')
+                      .upsert({
+                        company_id: companyId,
+                        task_id: 'schedule_launch',
+                        completed: true,
+                        completed_at: new Date().toISOString(),
+                      }, { onConflict: 'company_id,task_id' });
+                    setTaskCompletions(prev => ({ ...prev, schedule_launch: true }));
+                  } catch (err) {
+                    console.error('Failed to update launch date:', err);
+                  }
+                  setSaving(null);
+                }}
+                disabled={!tempDate || saving === 'launchDate'}
+                className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors disabled:bg-gray-200 disabled:text-gray-400"
+              >
+                {saving === 'launchDate' ? 'Saving...' : 'Save Date'}
               </button>
             </div>
           </div>
