@@ -701,10 +701,38 @@ const SetupDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Resources</h3>
             <div className="space-y-1">
-              <ResourceLink icon={FileText} label="Employee Welcome Email Template" />
-              <ResourceLink icon={Users} label="Manager Communication Guide" />
-              <ResourceLink icon={Shield} label="IT Security Documentation" />
-              <ResourceLink icon={Rocket} label="Program Best Practices" />
+              {/* Show welcome email template based on program type */}
+              {programs.some(p => p.type === 'EXEC') && (
+                <ResourceLink 
+                  icon={FileText} 
+                  label="Welcome Email Template (EXEC)" 
+                  href="https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_EXEC.pdf"
+                />
+              )}
+              {programs.some(p => p.type === 'GROW') && (
+                <ResourceLink 
+                  icon={FileText} 
+                  label="Welcome Email Template (GROW)" 
+                  href="https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_GROW.pdf"
+                />
+              )}
+              {programs.some(p => p.type === 'SCALE') && (
+                <ResourceLink 
+                  icon={FileText} 
+                  label="Welcome Email Template (SCALE)" 
+                  href="https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_SCALE.pdf"
+                />
+              )}
+              <ResourceLink 
+                icon={Users} 
+                label="Manager Communication Guide" 
+                href="https://storage.googleapis.com/boon-public-assets/Manager_Communication_Guide.pdf"
+              />
+              <ResourceLink 
+                icon={Rocket} 
+                label="Program Best Practices" 
+                href="https://storage.googleapis.com/boon-public-assets/Program_Best_Practices%20(1).pdf"
+              />
             </div>
           </div>
 
@@ -854,8 +882,13 @@ const TaskActionButton: React.FC<{ task: any }> = ({ task }) => {
   );
 };
 
-const ResourceLink: React.FC<{ icon: React.FC<any>; label: string }> = ({ icon: Icon, label }) => (
-  <a href="#" className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors group">
+const ResourceLink: React.FC<{ icon: React.FC<any>; label: string; href?: string }> = ({ icon: Icon, label, href = '#' }) => (
+  <a 
+    href={href} 
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors group"
+  >
     <div className="flex items-center gap-2">
       <Icon size={14} className="text-gray-400" />
       <span className="text-sm text-gray-700">{label}</span>
