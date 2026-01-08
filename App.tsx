@@ -14,6 +14,7 @@ import BaselineDashboard from './components/BaselineDashboard';
 import ScaleBaselineDashboard from './components/ScaleBaselineDashboard';
 import ScaleDashboard from './components/ScaleDashboard';
 import ReportGenerator from './components/ReportGenerator';
+import SetupDashboard from './components/SetupDashboard';
 
 import { 
   Users, 
@@ -28,7 +29,8 @@ import {
   TrendingUp,
   ClipboardList,
   Zap,
-  Building2
+  Building2,
+  ClipboardCheck
 } from 'lucide-react';
 
 // --- Sentry Initialization ---
@@ -170,11 +172,14 @@ const AdminCompanySwitcher: React.FC<{
 
 // --- Main Portal Layout with Dynamic Program Tabs ---
 const MainPortalLayout: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'setup' | 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline'>('dashboard');
   
   // Program Type State
   const [programType, setProgramType] = useState<'GROW' | 'Scale' | 'Exec' | null>(null);
   const [programTypeLoading, setProgramTypeLoading] = useState(true);
+  
+  // Show Setup tab only during onboarding (before launch_date)
+  const [showSetup, setShowSetup] = useState(false);
   
   // New Filter State
   const [filterType, setFilterType] = useState<'program' | 'cohort' | 'all'>('all');
@@ -249,6 +254,46 @@ const MainPortalLayout: React.FC = () => {
             setClientLogo(logoData.logo_url);
           }
         }
+        
+        // Check program_config to see if this company is in Onboarding status
+        // First try to get company_id from admin override or user metadata
+        let companyId = session?.user?.app_metadata?.company_id || '';
+        
+        if (adminUser) {
+          try {
+            const stored = localStorage.getItem(ADMIN_COMPANY_KEY);
+            if (stored) {
+              const override = JSON.parse(stored);
+              if (override.id) {
+                companyId = override.id;
+              }
+            }
+          } catch {}
+        }
+        
+        // If we have a company_id, check program_config for onboarding status
+        if (companyId) {
+          const { data: programData } = await supabase
+            .from('program_config')
+            .select('program_status')
+            .eq('company_id', companyId)
+            .maybeSingle();
+          
+          if (programData?.program_status?.toLowerCase() === 'onboarding') {
+            setShowSetup(true);
+          }
+        } else if (companyBase) {
+          // Fallback: check by account_name if no company_id
+          const { data: programData } = await supabase
+            .from('program_config')
+            .select('program_status')
+            .ilike('account_name', `%${companyBase}%`)
+            .maybeSingle();
+          
+          if (programData?.program_status?.toLowerCase() === 'onboarding') {
+            setShowSetup(true);
+          }
+        }
 
         setProgramTypeLoading(false);
 
@@ -313,7 +358,7 @@ const MainPortalLayout: React.FC = () => {
 
   const displayCompanyName = companyName.split(' - ')[0] || companyName;
 
-  const handleNavClick = (tab: 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline') => {
+  const handleNavClick = (tab: 'setup' | 'dashboard' | 'sessions' | 'employees' | 'impact' | 'themes' | 'baseline') => {
     setActiveTab(tab);
     setMobileMenuOpen(false);
     navigate(tab === 'dashboard' ? '/' : `/${tab}`);
@@ -409,6 +454,16 @@ const MainPortalLayout: React.FC = () => {
         </div>
 
         <nav className="flex-1 p-4 space-y-1 mt-2 overflow-y-auto custom-scrollbar">
+          {/* Setup - shows only during onboarding (before launch_date) or for admins */}
+          {(showSetup || isAdmin) && (
+            <NavItem 
+              active={activeTab === 'setup'} 
+              onClick={() => handleNavClick('setup')}
+              icon={<ClipboardCheck size={20} />} 
+              label="Setup" 
+            />
+          )}
+
           {/* Dashboard - shows Scale or GROW based on program type */}
           <NavItem 
             active={activeTab === 'dashboard'} 
@@ -523,6 +578,8 @@ const MainPortalLayout: React.FC = () => {
       <main className="flex-1 overflow-x-hidden h-[calc(100vh-60px)] lg:h-screen relative z-0 overflow-y-auto">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-10">
           <Routes>
+            {/* Setup route for onboarding */}
+            <Route path="/setup" element={<SetupDashboard />} />
             {/* Dashboard route shows Scale or GROW based on program type */}
             <Route path="/" element={isScale ? <ScaleDashboard /> : <HomeDashboard />} />
             <Route path="/sessions" element={<SessionDashboard filterType={filterType} filterValue={filterValue} />} />
