@@ -17,10 +17,10 @@ const TASK_CATEGORIES = [
     label: 'Program Configuration',
     icon: FileText,
     tasks: [
-      { id: 'confirm_competencies', label: 'Confirm competency framework', actionLabel: 'View', actionType: 'modal' },
-      { id: 'select_focus_areas', label: 'Select focus areas for program (or let employees choose)', actionLabel: 'Configure', actionType: 'modal' },
-      { id: 'set_goals', label: 'Set program goals & success metrics', actionLabel: 'Set Goals', actionType: 'modal' },
-      { id: 'company_context', label: 'Provide company context for coaches', actionLabel: 'Add Context', actionType: 'modal' },
+      { id: 'confirm_competencies', label: 'Confirm competency framework', actionLabel: null, actionType: 'checkbox' },
+      { id: 'select_focus_areas', label: 'Select focus areas for program (or let employees choose)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'set_goals', label: 'Set program goals & success metrics', actionLabel: null, actionType: 'checkbox' },
+      { id: 'company_context', label: 'Provide company context for coaches', actionLabel: null, actionType: 'checkbox' },
     ]
   },
   {
@@ -28,10 +28,10 @@ const TASK_CATEGORIES = [
     label: 'Security & Comms',
     icon: Shield,
     tasks: [
-      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Download PDF', actionType: 'allowlist' },
-      { id: 'trusted_senders', label: 'Add boon-health.com to Outlook trusted senders', actionLabel: null, actionType: 'checkbox' },
-      { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: 'Add Emails', actionType: 'modal' },
-      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel', actionLabel: 'Select', actionType: 'comms_dropdown', options: ['Slack', 'Microsoft Teams', 'Google Chat', 'Email Only'] },
+      { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Download', actionType: 'allowlist' },
+      { id: 'trusted_senders', label: 'Add boon-health.com to email allowlist (Outlook, Google Workspace, Microsoft 365)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: null, actionType: 'checkbox' },
+      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel (Slack, Teams, or Email)', actionLabel: null, actionType: 'checkbox' },
     ]
   },
   {
@@ -39,8 +39,8 @@ const TASK_CATEGORIES = [
     label: 'Finance',
     icon: CreditCard,
     tasks: [
-      { id: 'invoicing_email', label: 'Provide invoicing email', actionLabel: 'Add Email', actionType: 'modal' },
-      { id: 'payment_details', label: 'Share payment details with Finance', actionLabel: 'Download', actionType: 'download', downloadUrl: '/files/boon-payment-details.pdf' },
+      { id: 'invoicing_email', label: 'Provide invoicing email', actionLabel: null, actionType: 'checkbox' },
+      { id: 'payment_details', label: 'Share payment details with Finance team', actionLabel: null, actionType: 'checkbox' },
     ]
   },
   {
@@ -48,9 +48,9 @@ const TASK_CATEGORIES = [
     label: 'Launch Prep',
     icon: Rocket,
     tasks: [
-      { id: 'schedule_launch', label: 'Schedule launch date', actionLabel: 'Pick Date', actionType: 'date' },
-      { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: 'Preview', actionType: 'modal' },
-      { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: 'View Template', actionType: 'modal' },
+      { id: 'schedule_launch', label: 'Schedule launch date', actionLabel: null, actionType: 'checkbox' },
+      { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: null, actionType: 'checkbox' },
+      { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: null, actionType: 'checkbox' },
     ]
   },
 ];
