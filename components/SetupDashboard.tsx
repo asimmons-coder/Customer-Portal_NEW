@@ -63,6 +63,36 @@ const TIMELINE_STEPS = [
   { id: 'ongoing', label: 'Ongoing Support' },
 ];
 
+const EXEC_COMPETENCIES = [
+  'Visionary Leadership',
+  'High-Stakes Decision Making',
+  'Driving Organizational Change',
+  'Influence and Stakeholder Management',
+  'Strategic Agility',
+  'Leading Through Uncertainty',
+  'Board and Investor Relations',
+  'Sustainable Leadership',
+  'Inclusive Leadership',
+  'Building and Leading High-Performing Teams',
+  'Emotional Intelligence',
+  'Fostering Innovation and Creativity',
+];
+
+const GROW_COMPETENCIES = [
+  'Effective Communication',
+  'Persuasion and Influence',
+  'Adaptability and Resilience',
+  'Systems Thinking & Decision Velocity',
+  'Time Management and Productivity',
+  'Emotional Intelligence',
+  'Building Relationships at Work',
+  'Self Confidence and Imposter Syndrome',
+  'Delegation and Accountability',
+  'Giving and Receiving Feedback',
+  'Effective Planning and Execution',
+  'Leading Through Uncertainty',
+];
+
 interface TaskCompletion {
   task_id: string;
   completed: boolean;
@@ -79,6 +109,12 @@ const SetupDashboard: React.FC = () => {
   const [saving, setSaving] = useState<string | null>(null);
   const [programs, setPrograms] = useState<Array<{type: string, sessions: number | null, title: string | null, status: string | null}>>([]);
   const [contextNotes, setContextNotes] = useState<string>('');
+  const [selectedCompetencies, setSelectedCompetencies] = useState<string[]>([
+    'Visionary Leadership',
+    'High-Stakes Decision Making',
+    'Building and Leading High-Performing Teams',
+    'Influence and Stakeholder Management',
+  ]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -121,7 +157,7 @@ const SetupDashboard: React.FC = () => {
 
           const { data: programData } = await supabase
             .from('program_config')
-            .select('program_start_date, program_status, sessions_per_employee, program_type, program_title, context_notes')
+            .select('program_start_date, program_status, sessions_per_employee, program_type, program_title, context_notes, selected_competencies')
             .eq('company_id', compId);
           
           if (programData && programData.length > 0) {
@@ -146,6 +182,12 @@ const SetupDashboard: React.FC = () => {
             const notesProgram = programData.find(p => p.context_notes);
             if (notesProgram?.context_notes) {
               setContextNotes(notesProgram.context_notes);
+            }
+
+            // Load saved competencies
+            const compProgram = programData.find(p => p.selected_competencies && p.selected_competencies.length > 0);
+            if (compProgram?.selected_competencies) {
+              setSelectedCompetencies(compProgram.selected_competencies);
             }
           }
         }
@@ -329,6 +371,148 @@ const SetupDashboard: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Development Focus Areas */}
+          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Development Focus Areas</h2>
+                  <p className="text-sm text-gray-500 mt-1">Select 3-5 topics to align with your organizational goals</p>
+                </div>
+                <div className="text-sm">
+                  <span className={`font-medium ${selectedCompetencies.length >= 3 && selectedCompetencies.length <= 5 ? 'text-boon-green' : 'text-amber-500'}`}>
+                    {selectedCompetencies.length}/5 selected
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-6">
+              {programs.some(p => p.type === 'EXEC') && (
+                <div className="mb-6">
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">EXEC</span>
+                    Executive Leadership Topics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {EXEC_COMPETENCIES.map((comp) => {
+                      const isSelected = selectedCompetencies.includes(comp);
+                      const canSelect = selectedCompetencies.length < 5 || isSelected;
+                      return (
+                        <button
+                          key={comp}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCompetencies(prev => prev.filter(c => c !== comp));
+                            } else if (canSelect) {
+                              setSelectedCompetencies(prev => [...prev, comp]);
+                            }
+                          }}
+                          disabled={!canSelect && !isSelected}
+                          className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
+                            isSelected 
+                              ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
+                              : canSelect
+                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {comp}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {programs.some(p => p.type === 'GROW') && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">GROW</span>
+                    Leadership Development Topics
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {GROW_COMPETENCIES.map((comp) => {
+                      const isSelected = selectedCompetencies.includes(comp);
+                      const canSelect = selectedCompetencies.length < 5 || isSelected;
+                      return (
+                        <button
+                          key={comp}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCompetencies(prev => prev.filter(c => c !== comp));
+                            } else if (canSelect) {
+                              setSelectedCompetencies(prev => [...prev, comp]);
+                            }
+                          }}
+                          disabled={!canSelect && !isSelected}
+                          className={`p-3 rounded-xl text-sm font-medium text-left transition-all ${
+                            isSelected 
+                              ? 'bg-gradient-to-br from-orange-400 to-orange-500 text-white shadow-md' 
+                              : canSelect
+                                ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                : 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          {comp}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {selectedCompetencies.length > 0 && (
+                <div className="mt-6 pt-6 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-700">Selected Focus Areas</h4>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {selectedCompetencies.map(comp => (
+                          <span key={comp} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                            {comp}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!companyId) return;
+                        setSaving('competencies');
+                        try {
+                          await supabase
+                            .from('program_config')
+                            .update({ selected_competencies: selectedCompetencies })
+                            .eq('company_id', companyId);
+                          // Also mark the task as complete
+                          await supabase
+                            .from('onboarding_tasks')
+                            .upsert({
+                              company_id: companyId,
+                              task_id: 'confirm_competencies',
+                              completed: true,
+                              completed_at: new Date().toISOString(),
+                            }, { onConflict: 'company_id,task_id' });
+                          setTaskCompletions(prev => ({ ...prev, confirm_competencies: true }));
+                        } catch (err) {
+                          console.error('Failed to save competencies:', err);
+                        }
+                        setSaving(null);
+                      }}
+                      disabled={saving === 'competencies' || selectedCompetencies.length < 3}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        selectedCompetencies.length >= 3
+                          ? 'bg-boon-blue text-white hover:bg-boon-darkBlue'
+                          : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {saving === 'competencies' ? 'Saving...' : 'Save Selection'}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
