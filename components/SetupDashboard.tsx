@@ -1,15 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket, X, Copy, Mail, Check } from 'lucide-react';
+import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket, X, Copy, Mail, Check, Eye, Info } from 'lucide-react';
 
 const TASK_CATEGORIES = [
+  {
+    id: 'launch_prep',
+    label: 'Launch Prep',
+    icon: Rocket,
+    tasks: [
+      { id: 'schedule_launch', label: 'Schedule launch date', actionLabel: 'Set Date', actionType: 'date_modal' },
+      { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: 'Preview', actionType: 'preview_email' },
+      { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: null, actionType: 'checkbox' },
+    ]
+  },
   {
     id: 'account_setup',
     label: 'Account Setup',
     icon: Users,
     tasks: [
       { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Employees', actionType: 'link', actionUrl: '/employees' },
-      { id: 'upload_eap', label: 'Share EAP/mental health benefits info (optional)', actionLabel: 'Upload', actionType: 'upload' },
     ]
   },
   {
@@ -17,10 +26,8 @@ const TASK_CATEGORIES = [
     label: 'Program Configuration',
     icon: FileText,
     tasks: [
-      { id: 'confirm_competencies', label: 'Confirm competency framework', actionLabel: null, actionType: 'checkbox' },
-      { id: 'select_focus_areas', label: 'Select focus areas for program (or let employees choose)', actionLabel: null, actionType: 'checkbox' },
-      { id: 'set_goals', label: 'Set program goals & success metrics', actionLabel: null, actionType: 'checkbox' },
-      { id: 'company_context', label: 'Provide company context for coaches', actionLabel: null, actionType: 'checkbox' },
+      { id: 'select_focus_areas', label: 'Select focus areas for program (or let employees choose)', actionLabel: 'Configure', actionType: 'scroll_to_focus' },
+      { id: 'company_context', label: 'Provide company context for coaches', actionLabel: 'Edit', actionType: 'context_modal' },
     ]
   },
   {
@@ -29,8 +36,8 @@ const TASK_CATEGORIES = [
     icon: Shield,
     tasks: [
       { id: 'share_allowlist', label: 'Share Allow List with IT department', actionLabel: 'Setup Guide', actionType: 'allowlist_modal' },
-      { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: null, actionType: 'checkbox' },
-      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel (Slack, Teams, or Email)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'test_emails', label: 'Provide 2 test emails for deliverability check', actionLabel: 'Add Emails', actionType: 'test_emails_modal' },
+      { id: 'confirm_comms_channel', label: 'Confirm internal comms channel', actionLabel: 'Select', actionType: 'comms_modal' },
     ]
   },
   {
@@ -38,18 +45,16 @@ const TASK_CATEGORIES = [
     label: 'Finance',
     icon: CreditCard,
     tasks: [
-      { id: 'invoicing_email', label: 'Provide invoicing email', actionLabel: null, actionType: 'checkbox' },
+      { id: 'invoicing_email', label: 'Provide invoicing email', actionLabel: 'Add Email', actionType: 'invoice_modal' },
       { id: 'payment_details', label: 'Share payment details with Finance team', actionLabel: null, actionType: 'checkbox' },
     ]
   },
   {
-    id: 'launch_prep',
-    label: 'Launch Prep',
-    icon: Rocket,
+    id: 'additional',
+    label: 'Additional Info',
+    icon: Info,
     tasks: [
-      { id: 'schedule_launch', label: 'Schedule launch date', actionLabel: null, actionType: 'checkbox' },
-      { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: null, actionType: 'checkbox' },
-      { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: null, actionType: 'checkbox' },
+      { id: 'upload_eap', label: 'Share EAP/mental health benefits info (optional)', actionLabel: 'Add Info', actionType: 'eap_modal' },
     ]
   },
 ];
@@ -92,17 +97,34 @@ const GROW_COMPETENCIES = [
   'Leading Through Uncertainty',
 ];
 
+const COMMS_CHANNELS = [
+  { id: 'slack', label: 'Slack' },
+  { id: 'teams', label: 'Microsoft Teams' },
+  { id: 'email', label: 'Email Only' },
+  { id: 'other', label: 'Other' },
+];
+
 interface TaskCompletion {
   task_id: string;
   completed: boolean;
   completed_at: string | null;
 }
 
+interface OnboardingData {
+  test_emails?: string[];
+  comms_channel?: string;
+  comms_channel_details?: string;
+  invoicing_email?: string;
+  eap_info?: string;
+  eap_provider?: string;
+  eap_phone?: string;
+}
+
 const SetupDashboard: React.FC = () => {
   const [companyId, setCompanyId] = useState<string>('');
   const [companyName, setCompanyName] = useState<string>('');
   const [taskCompletions, setTaskCompletions] = useState<Record<string, boolean>>({});
-  const [expandedCategory, setExpandedCategory] = useState<string>('account_setup');
+  const [expandedCategory, setExpandedCategory] = useState<string>('launch_prep');
   const [loading, setLoading] = useState(true);
   const [launchDate, setLaunchDate] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
@@ -125,11 +147,31 @@ const SetupDashboard: React.FC = () => {
     calendly_url: string | null;
     is_primary: boolean;
   }>>([]);
+  
+  // Modal states
   const [showAllowlistModal, setShowAllowlistModal] = useState(false);
+  const [showDateModal, setShowDateModal] = useState(false);
+  const [showTestEmailsModal, setShowTestEmailsModal] = useState(false);
+  const [showCommsModal, setShowCommsModal] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [showEapModal, setShowEapModal] = useState(false);
+  const [showContextModal, setShowContextModal] = useState(false);
+  
   const [selectedProvider, setSelectedProvider] = useState<'default' | 'microsoft' | 'google'>('default');
   const [copied, setCopied] = useState(false);
-  const [showDateModal, setShowDateModal] = useState(false);
   const [tempDate, setTempDate] = useState<string>('');
+  
+  // Onboarding data
+  const [onboardingData, setOnboardingData] = useState<OnboardingData>({});
+  const [tempTestEmail1, setTempTestEmail1] = useState('');
+  const [tempTestEmail2, setTempTestEmail2] = useState('');
+  const [tempCommsChannel, setTempCommsChannel] = useState('');
+  const [tempCommsDetails, setTempCommsDetails] = useState('');
+  const [tempInvoiceEmail, setTempInvoiceEmail] = useState('');
+  const [tempEapInfo, setTempEapInfo] = useState('');
+  const [tempEapProvider, setTempEapProvider] = useState('');
+  const [tempEapPhone, setTempEapPhone] = useState('');
+  const [tempContextNotes, setTempContextNotes] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -172,11 +214,10 @@ const SetupDashboard: React.FC = () => {
 
           const { data: programData } = await supabase
             .from('program_config')
-            .select('program_start_date, launch_date_override, program_status, sessions_per_employee, program_type, program_title, context_notes, selected_competencies')
+            .select('program_start_date, launch_date_override, program_status, sessions_per_employee, program_type, program_title, context_notes, selected_competencies, onboarding_data')
             .eq('company_id', compId);
           
           if (programData && programData.length > 0) {
-            // Get earliest launch date from all programs (override takes precedence)
             const dates = programData
               .map(p => p.launch_date_override || p.program_start_date)
               .filter(Boolean)
@@ -185,7 +226,6 @@ const SetupDashboard: React.FC = () => {
               setLaunchDate(dates[0]);
             }
             
-            // Set all programs
             setPrograms(programData.map(p => ({
               type: p.program_type || '',
               sessions: p.sessions_per_employee || null,
@@ -193,13 +233,17 @@ const SetupDashboard: React.FC = () => {
               status: p.program_status || null
             })));
             
-            // Get context notes from first program that has them
             const notesProgram = programData.find(p => p.context_notes);
             if (notesProgram?.context_notes) {
               setContextNotes(notesProgram.context_notes);
             }
 
-            // Load saved competencies per program type
+            // Load onboarding data
+            const dataProgram = programData.find(p => p.onboarding_data);
+            if (dataProgram?.onboarding_data) {
+              setOnboardingData(dataProgram.onboarding_data);
+            }
+
             const execProgram = programData.find(p => p.program_type === 'EXEC');
             const growProgram = programData.find(p => p.program_type === 'GROW');
             
@@ -222,7 +266,6 @@ const SetupDashboard: React.FC = () => {
             }
           }
 
-          // Fetch account team for this company
           const { data: teamData } = await supabase
             .from('company_account_team')
             .select(`
@@ -258,6 +301,34 @@ const SetupDashboard: React.FC = () => {
 
     fetchData();
   }, []);
+
+  const saveOnboardingData = async (newData: Partial<OnboardingData>, taskId: string) => {
+    if (!companyId) return;
+    
+    const updatedData = { ...onboardingData, ...newData };
+    setOnboardingData(updatedData);
+    
+    try {
+      await supabase
+        .from('program_config')
+        .update({ onboarding_data: updatedData })
+        .eq('company_id', companyId);
+      
+      // Mark task complete
+      await supabase
+        .from('onboarding_tasks')
+        .upsert({
+          company_id: companyId,
+          task_id: taskId,
+          completed: true,
+          completed_at: new Date().toISOString(),
+        }, { onConflict: 'company_id,task_id' });
+      
+      setTaskCompletions(prev => ({ ...prev, [taskId]: true }));
+    } catch (err) {
+      console.error('Failed to save onboarding data:', err);
+    }
+  };
 
   const toggleTask = async (taskId: string) => {
     if (!companyId) return;
@@ -307,6 +378,19 @@ const SetupDashboard: React.FC = () => {
     ? Math.max(0, Math.ceil((new Date(launchDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
     : null;
 
+  const getWelcomeEmailUrl = () => {
+    if (programs.some(p => p.type === 'EXEC')) {
+      return 'https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_EXEC.pdf';
+    }
+    if (programs.some(p => p.type === 'GROW')) {
+      return 'https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_GROW.pdf';
+    }
+    if (programs.some(p => p.type === 'SCALE')) {
+      return 'https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_SCALE.pdf';
+    }
+    return 'https://storage.googleapis.com/boon-public-assets/Welcome_Email_Template_GROW.pdf';
+  };
+
   if (loading) {
     return (
       <div className="animate-pulse space-y-6">
@@ -321,6 +405,54 @@ const SetupDashboard: React.FC = () => {
     if (index < currentStep) return 'bg-boon-green text-white';
     if (index === currentStep) return 'bg-boon-blue text-white';
     return 'bg-gray-200 text-gray-500';
+  };
+
+  const handleTaskAction = (task: any) => {
+    switch (task.actionType) {
+      case 'date_modal':
+        setTempDate(launchDate || '');
+        setShowDateModal(true);
+        break;
+      case 'preview_email':
+        window.open(getWelcomeEmailUrl(), '_blank');
+        toggleTask(task.id);
+        break;
+      case 'scroll_to_focus':
+        document.getElementById('focus-areas-section')?.scrollIntoView({ behavior: 'smooth' });
+        break;
+      case 'context_modal':
+        setTempContextNotes(contextNotes);
+        setShowContextModal(true);
+        break;
+      case 'allowlist_modal':
+        setShowAllowlistModal(true);
+        break;
+      case 'test_emails_modal':
+        setTempTestEmail1(onboardingData.test_emails?.[0] || '');
+        setTempTestEmail2(onboardingData.test_emails?.[1] || '');
+        setShowTestEmailsModal(true);
+        break;
+      case 'comms_modal':
+        setTempCommsChannel(onboardingData.comms_channel || '');
+        setTempCommsDetails(onboardingData.comms_channel_details || '');
+        setShowCommsModal(true);
+        break;
+      case 'invoice_modal':
+        setTempInvoiceEmail(onboardingData.invoicing_email || '');
+        setShowInvoiceModal(true);
+        break;
+      case 'eap_modal':
+        setTempEapProvider(onboardingData.eap_provider || '');
+        setTempEapPhone(onboardingData.eap_phone || '');
+        setTempEapInfo(onboardingData.eap_info || '');
+        setShowEapModal(true);
+        break;
+      case 'link':
+        if (task.actionUrl) window.location.href = task.actionUrl;
+        break;
+      default:
+        break;
+    }
   };
 
   return (
@@ -401,25 +533,48 @@ const SetupDashboard: React.FC = () => {
                           const isComplete = taskCompletions[task.id];
                           const isSaving = saving === task.id;
                           
+                          // Show saved data preview for certain tasks
+                          let savedPreview = null;
+                          if (task.id === 'test_emails' && onboardingData.test_emails?.length) {
+                            savedPreview = onboardingData.test_emails.join(', ');
+                          } else if (task.id === 'confirm_comms_channel' && onboardingData.comms_channel) {
+                            savedPreview = COMMS_CHANNELS.find(c => c.id === onboardingData.comms_channel)?.label || onboardingData.comms_channel;
+                          } else if (task.id === 'invoicing_email' && onboardingData.invoicing_email) {
+                            savedPreview = onboardingData.invoicing_email;
+                          }
+                          
                           return (
                             <div 
                               key={task.id}
                               className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${isComplete ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
                                 <button
                                   onClick={() => toggleTask(task.id)}
                                   disabled={isSaving}
-                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${isComplete ? 'bg-boon-green border-boon-green text-white' : 'border-gray-300 hover:border-boon-blue'} ${isSaving ? 'opacity-50' : ''}`}
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all flex-shrink-0 ${isComplete ? 'bg-boon-green border-boon-green text-white' : 'border-gray-300 hover:border-boon-blue'} ${isSaving ? 'opacity-50' : ''}`}
                                 >
                                   {isComplete && <CheckCircle2 size={14} />}
                                 </button>
-                                <span className={`text-sm ${isComplete ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
-                                  {task.label}
-                                </span>
+                                <div className="min-w-0">
+                                  <span className={`text-sm block ${isComplete ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                                    {task.label}
+                                  </span>
+                                  {savedPreview && (
+                                    <span className="text-xs text-gray-400 truncate block">{savedPreview}</span>
+                                  )}
+                                </div>
                               </div>
-                              {task.actionLabel && !isComplete && (
-                                <TaskActionButton task={task} onAllowlistClick={() => setShowAllowlistModal(true)} />
+                              {task.actionLabel && (
+                                <button 
+                                  onClick={() => handleTaskAction(task)}
+                                  className="px-3 py-1.5 text-xs font-medium text-boon-blue bg-boon-blue/10 rounded-lg hover:bg-boon-blue/20 transition-colors flex items-center gap-1 flex-shrink-0 ml-2"
+                                >
+                                  {task.actionType === 'preview_email' && <Eye size={12} />}
+                                  {task.actionType === 'link' && <ExternalLink size={12} />}
+                                  {task.actionType === 'allowlist_modal' && <Mail size={12} />}
+                                  {task.actionLabel}
+                                </button>
                               )}
                             </div>
                           );
@@ -433,7 +588,7 @@ const SetupDashboard: React.FC = () => {
           </div>
 
           {/* Development Focus Areas */}
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+          <div id="focus-areas-section" className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
             <div className="p-6 border-b border-gray-100">
               <h2 className="text-lg font-bold text-gray-900">Development Focus Areas</h2>
               <p className="text-sm text-gray-500 mt-1">Select 3-5 topics per program, or let employees choose their own</p>
@@ -574,7 +729,6 @@ const SetupDashboard: React.FC = () => {
                     if (!companyId) return;
                     setSaving('competencies');
                     try {
-                      // Save EXEC competencies
                       const execProgram = programs.find(p => p.type === 'EXEC');
                       if (execProgram) {
                         const execValue = execLetEmployeesChoose ? ['EMPLOYEE_CHOICE'] : execCompetencies;
@@ -585,7 +739,6 @@ const SetupDashboard: React.FC = () => {
                           .eq('program_type', 'EXEC');
                       }
                       
-                      // Save GROW competencies
                       const growProgram = programs.find(p => p.type === 'GROW');
                       if (growProgram) {
                         const growValue = growLetEmployeesChoose ? ['EMPLOYEE_CHOICE'] : growCompetencies;
@@ -596,16 +749,15 @@ const SetupDashboard: React.FC = () => {
                           .eq('program_type', 'GROW');
                       }
                       
-                      // Mark task as complete
                       await supabase
                         .from('onboarding_tasks')
                         .upsert({
                           company_id: companyId,
-                          task_id: 'confirm_competencies',
+                          task_id: 'select_focus_areas',
                           completed: true,
                           completed_at: new Date().toISOString(),
                         }, { onConflict: 'company_id,task_id' });
-                      setTaskCompletions(prev => ({ ...prev, confirm_competencies: true }));
+                      setTaskCompletions(prev => ({ ...prev, select_focus_areas: true }));
                     } catch (err) {
                       console.error('Failed to save competencies:', err);
                     }
@@ -638,7 +790,7 @@ const SetupDashboard: React.FC = () => {
                   {new Date(launchDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                 </p>
                 <p className="text-blue-200 text-sm">
-                  {daysUntilLaunch === 0 ? 'Today!' : daysUntilLaunch > 0 ? `${daysUntilLaunch} days from now` : `${Math.abs(daysUntilLaunch)} days ago`}
+                  {daysUntilLaunch === 0 ? 'Today!' : daysUntilLaunch > 0 ? `${daysUntilLaunch} days from now` : `${Math.abs(daysUntilLaunch!)} days ago`}
                 </p>
               </>
             ) : (
@@ -711,7 +863,6 @@ const SetupDashboard: React.FC = () => {
           <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
             <h3 className="font-bold text-gray-900 mb-4">Resources</h3>
             <div className="space-y-1">
-              {/* Show welcome email template based on program type */}
               {programs.some(p => p.type === 'EXEC') && (
                 <ResourceLink 
                   icon={FileText} 
@@ -806,11 +957,289 @@ const SetupDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Launch Date Modal */}
+      {showDateModal && (
+        <Modal title="Set Launch Date" subtitle="When should the program begin?" onClose={() => setShowDateModal(false)}>
+          <div className="p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Launch Date</label>
+            <input
+              type="date"
+              value={tempDate}
+              onChange={(e) => setTempDate(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+            />
+            {tempDate && (
+              <p className="mt-2 text-sm text-gray-500">
+                {new Date(tempDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              </p>
+            )}
+          </div>
+          <ModalActions
+            onCancel={() => setShowDateModal(false)}
+            onSave={async () => {
+              if (!companyId || !tempDate) return;
+              setSaving('launchDate');
+              try {
+                await supabase
+                  .from('program_config')
+                  .update({ launch_date_override: tempDate })
+                  .eq('company_id', companyId);
+                
+                setLaunchDate(tempDate);
+                setShowDateModal(false);
+                
+                await supabase
+                  .from('onboarding_tasks')
+                  .upsert({
+                    company_id: companyId,
+                    task_id: 'schedule_launch',
+                    completed: true,
+                    completed_at: new Date().toISOString(),
+                  }, { onConflict: 'company_id,task_id' });
+                setTaskCompletions(prev => ({ ...prev, schedule_launch: true }));
+              } catch (err) {
+                console.error('Failed to update launch date:', err);
+              }
+              setSaving(null);
+            }}
+            saveLabel={saving === 'launchDate' ? 'Saving...' : 'Save Date'}
+            saveDisabled={!tempDate || saving === 'launchDate'}
+          />
+        </Modal>
+      )}
+
+      {/* Test Emails Modal */}
+      {showTestEmailsModal && (
+        <Modal title="Test Emails for Deliverability" subtitle="We'll send test emails to verify delivery" onClose={() => setShowTestEmailsModal(false)}>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Test Email 1</label>
+              <input
+                type="email"
+                value={tempTestEmail1}
+                onChange={(e) => setTempTestEmail1(e.target.value)}
+                placeholder="email1@company.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Test Email 2</label>
+              <input
+                type="email"
+                value={tempTestEmail2}
+                onChange={(e) => setTempTestEmail2(e.target.value)}
+                placeholder="email2@company.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+              />
+            </div>
+            <p className="text-xs text-gray-500">We'll send test emails to these addresses to verify Boon emails are landing correctly.</p>
+          </div>
+          <ModalActions
+            onCancel={() => setShowTestEmailsModal(false)}
+            onSave={async () => {
+              const emails = [tempTestEmail1, tempTestEmail2].filter(e => e.trim());
+              if (emails.length === 0) return;
+              setSaving('testEmails');
+              await saveOnboardingData({ test_emails: emails }, 'test_emails');
+              setSaving(null);
+              setShowTestEmailsModal(false);
+            }}
+            saveLabel={saving === 'testEmails' ? 'Saving...' : 'Save Emails'}
+            saveDisabled={!tempTestEmail1.trim() || saving === 'testEmails'}
+          />
+        </Modal>
+      )}
+
+      {/* Comms Channel Modal */}
+      {showCommsModal && (
+        <Modal title="Internal Communications Channel" subtitle="How should we communicate with your team?" onClose={() => setShowCommsModal(false)}>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Primary Channel</label>
+              <div className="grid grid-cols-2 gap-3">
+                {COMMS_CHANNELS.map((channel) => (
+                  <button
+                    key={channel.id}
+                    onClick={() => setTempCommsChannel(channel.id)}
+                    className={`p-3 rounded-lg text-sm font-medium border-2 transition-all ${
+                      tempCommsChannel === channel.id
+                        ? 'border-boon-blue bg-boon-blue/10 text-boon-blue'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    {channel.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {(tempCommsChannel === 'slack' || tempCommsChannel === 'teams') && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {tempCommsChannel === 'slack' ? 'Slack Channel or Workspace' : 'Teams Channel'}
+                </label>
+                <input
+                  type="text"
+                  value={tempCommsDetails}
+                  onChange={(e) => setTempCommsDetails(e.target.value)}
+                  placeholder={tempCommsChannel === 'slack' ? '#coaching-support' : 'General'}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+                />
+              </div>
+            )}
+          </div>
+          <ModalActions
+            onCancel={() => setShowCommsModal(false)}
+            onSave={async () => {
+              if (!tempCommsChannel) return;
+              setSaving('comms');
+              await saveOnboardingData({ 
+                comms_channel: tempCommsChannel,
+                comms_channel_details: tempCommsDetails 
+              }, 'confirm_comms_channel');
+              setSaving(null);
+              setShowCommsModal(false);
+            }}
+            saveLabel={saving === 'comms' ? 'Saving...' : 'Save'}
+            saveDisabled={!tempCommsChannel || saving === 'comms'}
+          />
+        </Modal>
+      )}
+
+      {/* Invoice Email Modal */}
+      {showInvoiceModal && (
+        <Modal title="Invoicing Email" subtitle="Where should we send invoices?" onClose={() => setShowInvoiceModal(false)}>
+          <div className="p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Invoicing Email Address</label>
+            <input
+              type="email"
+              value={tempInvoiceEmail}
+              onChange={(e) => setTempInvoiceEmail(e.target.value)}
+              placeholder="ap@company.com"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+            />
+            <p className="text-xs text-gray-500 mt-2">We'll send all invoices and billing information to this address.</p>
+          </div>
+          <ModalActions
+            onCancel={() => setShowInvoiceModal(false)}
+            onSave={async () => {
+              if (!tempInvoiceEmail.trim()) return;
+              setSaving('invoice');
+              await saveOnboardingData({ invoicing_email: tempInvoiceEmail }, 'invoicing_email');
+              setSaving(null);
+              setShowInvoiceModal(false);
+            }}
+            saveLabel={saving === 'invoice' ? 'Saving...' : 'Save'}
+            saveDisabled={!tempInvoiceEmail.trim() || saving === 'invoice'}
+          />
+        </Modal>
+      )}
+
+      {/* EAP Modal */}
+      {showEapModal && (
+        <Modal title="EAP / Mental Health Benefits" subtitle="Optional: Share your company's EAP info with coaches" onClose={() => setShowEapModal(false)}>
+          <div className="p-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">EAP Provider Name</label>
+              <input
+                type="text"
+                value={tempEapProvider}
+                onChange={(e) => setTempEapProvider(e.target.value)}
+                placeholder="e.g., ComPsych, Lyra Health"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">EAP Phone Number</label>
+              <input
+                type="tel"
+                value={tempEapPhone}
+                onChange={(e) => setTempEapPhone(e.target.value)}
+                placeholder="1-800-XXX-XXXX"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Additional Details (optional)</label>
+              <textarea
+                value={tempEapInfo}
+                onChange={(e) => setTempEapInfo(e.target.value)}
+                placeholder="Any additional information about mental health resources..."
+                rows={3}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue resize-none"
+              />
+            </div>
+            <p className="text-xs text-gray-500">This helps coaches provide appropriate referrals if employees need additional support.</p>
+          </div>
+          <ModalActions
+            onCancel={() => setShowEapModal(false)}
+            onSave={async () => {
+              setSaving('eap');
+              await saveOnboardingData({ 
+                eap_provider: tempEapProvider,
+                eap_phone: tempEapPhone,
+                eap_info: tempEapInfo 
+              }, 'upload_eap');
+              setSaving(null);
+              setShowEapModal(false);
+            }}
+            saveLabel={saving === 'eap' ? 'Saving...' : 'Save'}
+            saveDisabled={saving === 'eap'}
+          />
+        </Modal>
+      )}
+
+      {/* Context Notes Modal */}
+      {showContextModal && (
+        <Modal title="Company Context for Coaches" subtitle="Help coaches understand your company culture" onClose={() => setShowContextModal(false)}>
+          <div className="p-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Context Notes</label>
+            <textarea
+              value={tempContextNotes}
+              onChange={(e) => setTempContextNotes(e.target.value)}
+              placeholder="Share relevant context about your company culture, current initiatives, challenges, or anything coaches should know..."
+              rows={6}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue resize-none"
+            />
+            <p className="text-xs text-gray-500 mt-2">This information will be shared with coaches to help them provide more relevant guidance.</p>
+          </div>
+          <ModalActions
+            onCancel={() => setShowContextModal(false)}
+            onSave={async () => {
+              if (!companyId) return;
+              setSaving('context');
+              try {
+                await supabase
+                  .from('program_config')
+                  .update({ context_notes: tempContextNotes })
+                  .eq('company_id', companyId);
+                
+                setContextNotes(tempContextNotes);
+                
+                await supabase
+                  .from('onboarding_tasks')
+                  .upsert({
+                    company_id: companyId,
+                    task_id: 'company_context',
+                    completed: true,
+                    completed_at: new Date().toISOString(),
+                  }, { onConflict: 'company_id,task_id' });
+                setTaskCompletions(prev => ({ ...prev, company_context: true }));
+              } catch (err) {
+                console.error('Failed to save context:', err);
+              }
+              setSaving(null);
+              setShowContextModal(false);
+            }}
+            saveLabel={saving === 'context' ? 'Saving...' : 'Save'}
+            saveDisabled={saving === 'context'}
+          />
+        </Modal>
+      )}
+
       {/* Safe Sender Setup Modal */}
       {showAllowlistModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-            {/* Header */}
             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Safe Sender Setup Guide</h2>
@@ -824,7 +1253,6 @@ const SetupDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Provider Selection */}
             <div className="p-6 border-b border-gray-100">
               <label className="block text-sm font-medium text-gray-700 mb-2">Select email provider</label>
               <div className="flex gap-2">
@@ -851,7 +1279,6 @@ const SetupDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Email Template */}
             <div className="p-6 flex-1 overflow-y-auto">
               <div className="space-y-4">
                 <div>
@@ -869,7 +1296,6 @@ const SetupDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="p-6 border-t border-gray-100 flex items-center justify-between gap-4">
               <button
                 onClick={() => {
@@ -889,11 +1315,25 @@ const SetupDashboard: React.FC = () => {
                 Download Allowlist
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   const template = SAFE_SENDER_EMAILS[selectedProvider];
                   const fullText = `Subject: ${template.subject}\n\n${template.body}`;
                   navigator.clipboard.writeText(fullText);
                   setCopied(true);
+                  
+                  // Mark task complete
+                  if (companyId) {
+                    await supabase
+                      .from('onboarding_tasks')
+                      .upsert({
+                        company_id: companyId,
+                        task_id: 'share_allowlist',
+                        completed: true,
+                        completed_at: new Date().toISOString(),
+                      }, { onConflict: 'company_id,task_id' });
+                    setTaskCompletions(prev => ({ ...prev, share_allowlist: true }));
+                  }
+                  
                   setTimeout(() => setCopied(false), 2000);
                 }}
                 className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors flex items-center gap-2"
@@ -905,91 +1345,58 @@ const SetupDashboard: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Launch Date Modal */}
-      {showDateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden">
-            {/* Header */}
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Set Launch Date</h2>
-                <p className="text-sm text-gray-500 mt-1">When should the program begin?</p>
-              </div>
-              <button 
-                onClick={() => setShowDateModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={20} className="text-gray-500" />
-              </button>
-            </div>
-
-            {/* Date Input */}
-            <div className="p-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Launch Date</label>
-              <input
-                type="date"
-                value={tempDate}
-                onChange={(e) => setTempDate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
-              />
-              {tempDate && (
-                <p className="mt-2 text-sm text-gray-500">
-                  {new Date(tempDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                </p>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowDateModal(false)}
-                className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  if (!companyId || !tempDate) return;
-                  setSaving('launchDate');
-                  try {
-                    // Update launch_date_override for all programs for this company
-                    // This field takes precedence and syncs back to Salesforce via Zapier
-                    await supabase
-                      .from('program_config')
-                      .update({ launch_date_override: tempDate })
-                      .eq('company_id', companyId);
-                    
-                    setLaunchDate(tempDate);
-                    setShowDateModal(false);
-                    
-                    // Mark the schedule launch task as complete
-                    await supabase
-                      .from('onboarding_tasks')
-                      .upsert({
-                        company_id: companyId,
-                        task_id: 'schedule_launch',
-                        completed: true,
-                        completed_at: new Date().toISOString(),
-                      }, { onConflict: 'company_id,task_id' });
-                    setTaskCompletions(prev => ({ ...prev, schedule_launch: true }));
-                  } catch (err) {
-                    console.error('Failed to update launch date:', err);
-                  }
-                  setSaving(null);
-                }}
-                disabled={!tempDate || saving === 'launchDate'}
-                className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors disabled:bg-gray-200 disabled:text-gray-400"
-              >
-                {saving === 'launchDate' ? 'Saving...' : 'Save Date'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
+
+// Reusable Modal Component
+const Modal: React.FC<{
+  title: string;
+  subtitle?: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}> = ({ title, subtitle, onClose, children }) => (
+  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="bg-white rounded-2xl max-w-md w-full overflow-hidden">
+      <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold text-gray-900">{title}</h2>
+          {subtitle && <p className="text-sm text-gray-500 mt-1">{subtitle}</p>}
+        </div>
+        <button 
+          onClick={onClose}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <X size={20} className="text-gray-500" />
+        </button>
+      </div>
+      {children}
+    </div>
+  </div>
+);
+
+const ModalActions: React.FC<{
+  onCancel: () => void;
+  onSave: () => void;
+  saveLabel?: string;
+  saveDisabled?: boolean;
+}> = ({ onCancel, onSave, saveLabel = 'Save', saveDisabled = false }) => (
+  <div className="p-6 border-t border-gray-100 flex items-center justify-end gap-3">
+    <button
+      onClick={onCancel}
+      className="px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+    >
+      Cancel
+    </button>
+    <button
+      onClick={onSave}
+      disabled={saveDisabled}
+      className="px-6 py-2.5 bg-boon-blue text-white rounded-lg text-sm font-medium hover:bg-boon-darkBlue transition-colors disabled:bg-gray-200 disabled:text-gray-400"
+    >
+      {saveLabel}
+    </button>
+  </div>
+);
 
 const ALLOWLIST_CONTENT = `BOON EMAIL ALLOWLIST
 
@@ -1103,43 +1510,6 @@ Once that's in place, we should be set for the remainder of the program.
 Thanks so much,
 [AM Name]`
   }
-};
-
-const TaskActionButton: React.FC<{ task: any; onAllowlistClick?: () => void }> = ({ task, onAllowlistClick }) => {
-  const handleClick = () => {
-    if (task.actionType === 'link' && task.actionUrl) {
-      window.location.href = task.actionUrl;
-    } else if (task.actionType === 'allowlist') {
-      // Download allowlist as text file
-      const blob = new Blob([ALLOWLIST_CONTENT], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'Boon_Email_Allowlist.txt';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } else if (task.actionType === 'allowlist_modal' && onAllowlistClick) {
-      onAllowlistClick();
-    } else if (task.actionType === 'download' && task.downloadUrl) {
-      window.open(task.downloadUrl, '_blank');
-    } else {
-      console.log('Action clicked:', task.id);
-    }
-  };
-
-  return (
-    <button 
-      onClick={handleClick}
-      className="px-3 py-1.5 text-xs font-medium text-boon-blue bg-boon-blue/10 rounded-lg hover:bg-boon-blue/20 transition-colors flex items-center gap-1"
-    >
-      {(task.actionType === 'download' || task.actionType === 'allowlist') && <Download size={12} />}
-      {task.actionType === 'allowlist_modal' && <Mail size={12} />}
-      {task.actionType === 'link' && <ExternalLink size={12} />}
-      {task.actionLabel}
-    </button>
-  );
 };
 
 const ResourceLink: React.FC<{ icon: React.FC<any>; label: string; href?: string }> = ({ icon: Icon, label, href = '#' }) => (
