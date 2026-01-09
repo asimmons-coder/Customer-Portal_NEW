@@ -45,6 +45,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     };
   }, []);
 
+  // Check if this is a password recovery link
+  const hash = window.location.hash;
+  const isRecoveryLink = hash && hash.includes('type=recovery');
+  
+  // If it's a recovery link, redirect to reset-password page with the hash
+  if (isRecoveryLink) {
+    return <Navigate to={`/reset-password${hash}`} replace />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-boon-bg flex items-center justify-center">
