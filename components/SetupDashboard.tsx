@@ -9,16 +9,9 @@ const TASK_CATEGORIES = [
     icon: Rocket,
     tasks: [
       { id: 'schedule_launch', label: 'Schedule launch date', actionLabel: 'Set Date', actionType: 'date_modal' },
+      { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Employees', actionType: 'link', actionUrl: '/employees' },
       { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: 'Preview', actionType: 'preview_email' },
       { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: null, actionType: 'checkbox' },
-    ]
-  },
-  {
-    id: 'account_setup',
-    label: 'Account Setup',
-    icon: Users,
-    tasks: [
-      { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Employees', actionType: 'link', actionUrl: '/employees' },
     ]
   },
   {
@@ -1072,20 +1065,6 @@ const SetupDashboard: React.FC = () => {
                 ))}
               </div>
             </div>
-            {(tempCommsChannel === 'slack' || tempCommsChannel === 'teams') && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {tempCommsChannel === 'slack' ? 'Slack Channel or Workspace' : 'Teams Channel'}
-                </label>
-                <input
-                  type="text"
-                  value={tempCommsDetails}
-                  onChange={(e) => setTempCommsDetails(e.target.value)}
-                  placeholder={tempCommsChannel === 'slack' ? '#coaching-support' : 'General'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-boon-blue focus:border-boon-blue"
-                />
-              </div>
-            )}
           </div>
           <ModalActions
             onCancel={() => setShowCommsModal(false)}
@@ -1093,8 +1072,7 @@ const SetupDashboard: React.FC = () => {
               if (!tempCommsChannel) return;
               setSaving('comms');
               await saveOnboardingData({ 
-                comms_channel: tempCommsChannel,
-                comms_channel_details: tempCommsDetails 
+                comms_channel: tempCommsChannel
               }, 'confirm_comms_channel');
               setSaving(null);
               setShowCommsModal(false);
