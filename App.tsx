@@ -16,6 +16,7 @@ import ScaleBaselineDashboard from './components/ScaleBaselineDashboard';
 import ScaleDashboard from './components/ScaleDashboard';
 import ReportGenerator from './components/ReportGenerator';
 import SetupDashboard from './components/SetupDashboard';
+import ManagerDashboard from './components/ManagerDashboard';
 
 import { 
   Users, 
@@ -194,6 +195,8 @@ const MainPortalLayout: React.FC = () => {
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isManager, setIsManager] = useState(false);
+  const [viewMode, setViewMode] = useState<'admin' | 'manager'>('admin');
   const navigate = useNavigate();
 
   const handleCompanyChange = (newCompany: string, newProgramType: 'GROW' | 'Scale') => {
@@ -211,6 +214,19 @@ const MainPortalLayout: React.FC = () => {
         
         const adminUser = ADMIN_EMAILS.includes(email?.toLowerCase());
         setIsAdmin(adminUser);
+        
+        // Check if user is a manager (has employees reporting to them)
+        const { data: managerCheck } = await supabase
+          .from('employee_manager')
+          .select('id')
+          .eq('manager_email', email)
+          .limit(1);
+        
+        const isManagerUser = managerCheck && managerCheck.length > 0;
+        setIsManager(isManagerUser);
+        
+        // If user is ONLY a manager (not admin), they'll see ManagerDashboard
+        // If admin, they default to admin view but can toggle
         
         // Check for admin override
         let company = session?.user?.app_metadata?.company || '';
@@ -391,6 +407,12 @@ const MainPortalLayout: React.FC = () => {
     );
   }
 
+  // If user is a manager (not admin), show Manager Dashboard
+  // If admin with manager role, check viewMode
+  if (isManager && (!isAdmin || viewMode === 'manager')) {
+    return <ManagerDashboard />;
+  }
+
   // Scale-specific navigation
   const isScale = programType?.toUpperCase() === 'SCALE';
 
@@ -453,6 +475,15 @@ const MainPortalLayout: React.FC = () => {
               currentCompany={companyName}
               onCompanyChange={handleCompanyChange}
             />
+          )}
+          {isAdmin && isManager && (
+            <button
+              onClick={() => setViewMode(viewMode === 'admin' ? 'manager' : 'admin')}
+              className="mt-2 flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-800 rounded-lg text-xs font-bold hover:bg-purple-200 transition w-full justify-center"
+            >
+              <Users size={14} />
+              {viewMode === 'admin' ? 'Switch to Manager View' : 'Switch to Admin View'}
+            </button>
           )}
         </div>
 

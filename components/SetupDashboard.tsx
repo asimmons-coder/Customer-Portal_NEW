@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket, X, Copy, Mail, Check, Eye, Info } from 'lucide-react';
+import { ChevronRight, Calendar, Upload, Download, ExternalLink, CheckCircle2, Clock, Users, MessageSquare, FileText, Shield, CreditCard, Rocket, X, Copy, Mail, Check, Eye, Info, Database } from 'lucide-react';
 
 const TASK_CATEGORIES = [
   {
@@ -12,6 +13,14 @@ const TASK_CATEGORIES = [
       { id: 'upload_roster', label: 'Upload employee roster', actionLabel: 'Employees', actionType: 'link', actionUrl: '/employees' },
       { id: 'review_welcome_email', label: 'Review employee welcome email', actionLabel: 'Preview', actionType: 'preview_email' },
       { id: 'send_announcement', label: 'Send company-wide announcement (optional)', actionLabel: null, actionType: 'checkbox' },
+    ]
+  },
+  {
+    id: 'data_migration',
+    label: 'Data Migration',
+    icon: Database,
+    tasks: [
+      { id: 'migrate_legacy', label: 'Import legacy data from Google Sheets', actionLabel: 'AI Assistant', actionType: 'link', actionUrl: '/import' },
     ]
   },
   {
