@@ -49,18 +49,36 @@ export const fetchEmployees = getEmployeeRoster;
  * Fetches all sessions from 'session_tracking'.
  */
 export const getDashboardSessions = async (): Promise<SessionWithEmployee[]> => {
-  const { data, error } = await supabase
-    .from('session_tracking')
-    .select('*')
-    .order('session_date', { ascending: false });
+  // Fetch in batches to avoid Supabase 1000 row limit
+  let allData: any[] = [];
+  let offset = 0;
+  const batchSize = 1000;
+  let hasMore = true;
 
-  if (error) {
-    console.error('Error fetching sessions:', error);
-    Sentry.captureException(error, { tags: { query: 'getDashboardSessions' } });
-    return [];
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('session_tracking')
+      .select('*')
+      .order('session_date', { ascending: false })
+      .range(offset, offset + batchSize - 1);
+
+    if (error) {
+      console.error('Error fetching sessions:', error);
+      Sentry.captureException(error, { tags: { query: 'getDashboardSessions' } });
+      break;
+    }
+
+    if (data && data.length > 0) {
+      allData = [...allData, ...data];
+      offset += batchSize;
+      hasMore = data.length === batchSize;
+    } else {
+      hasMore = false;
+    }
   }
 
-  return data as SessionWithEmployee[];
+  console.log(`Fetched ${allData.length} total sessions`);
+  return allData as SessionWithEmployee[];
 };
 
 export const fetchSessions = async (): Promise<Session[]> => {
