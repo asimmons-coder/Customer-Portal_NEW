@@ -1,6 +1,17 @@
 
 import { SessionWithEmployee, Employee } from './types';
 
+// Centralized admin email list - users who can switch between companies
+export const ADMIN_EMAILS = [
+  'asimmons@boon-health.com',
+  'alexsimm95@gmail.com',
+  'hello@boon-health.com',
+  'zragland@boon-health.com',
+  'canderson@boon-health.com',
+  'anewman@boon-health.com',
+  'chenrichs@boon-health.com',
+];
+
 export const MOCK_EMPLOYEES: Employee[] = [
   { id: 1, first_name: 'Alice', last_name: 'Johnson', email: 'alice@example.com', program: 'Engineering', avatar_url: 'https://picsum.photos/seed/alice/100/100', full_name: 'Alice Johnson' },
   { id: 2, first_name: 'Bob', last_name: 'Smith', email: 'bob@example.com', program: 'Design', avatar_url: 'https://picsum.photos/seed/bob/100/100', full_name: 'Bob Smith' },
