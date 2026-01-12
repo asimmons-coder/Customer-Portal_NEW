@@ -88,6 +88,7 @@ const ScaleBaselineDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -96,16 +97,25 @@ const ScaleBaselineDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
         
-        setCompanyName(company);
+        setCompanyName(accName || company);
 
         // Fetch survey data
         // Fix: Cast to unknown then ScaleWelcomeSurvey[] to handle potential type mismatch
         const data = await getWelcomeSurveyScaleData();
-        setSurveyData(data as unknown as ScaleWelcomeSurvey[]);
+        
+        // Filter by accountName if set, otherwise by company
+        const filterBase = (accName || company.split(' - ')[0]).toLowerCase();
+        const filteredData = data.filter((s: any) => {
+          const account = (s.account || '').toLowerCase();
+          return account.includes(filterBase) || filterBase.includes(account.split(' - ')[0]);
+        });
+        
+        setSurveyData(filteredData as unknown as ScaleWelcomeSurvey[]);
 
         // Fetch benchmarks
         const { data: benchmarkData, error: benchmarkError } = await supabase

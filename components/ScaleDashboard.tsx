@@ -72,6 +72,7 @@ const ScaleDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [companyName, setCompanyName] = useState('');
   const [companyId, setCompanyId] = useState('');
+  const [accountName, setAccountName] = useState('');
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
 
   useEffect(() => {
@@ -85,6 +86,7 @@ const ScaleDashboard: React.FC = () => {
         
         let company = session?.user?.app_metadata?.company || '';
         let compId = session?.user?.app_metadata?.company_id || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -94,12 +96,14 @@ const ScaleDashboard: React.FC = () => {
               const override = JSON.parse(stored);
               company = override.name;
               compId = override.id || compId;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
         
         setCompanyName(company);
         setCompanyId(compId);
+        setAccountName(accName);
 
         const [sessData, survData, empData, welcomeData] = await Promise.all([
           getDashboardSessions(),
@@ -128,8 +132,10 @@ const ScaleDashboard: React.FC = () => {
     if (loading) return null;
 
     const normalize = (s: string) => s?.toLowerCase().trim() || '';
-    // Remove SCALE/GROW/EXEC suffix from company name for matching
+    // Use accountName if set (for multi-company accounts like Media Arts Lab)
+    // Otherwise fall back to company name
     const currentAccount = normalize(
+      accountName || 
       companyName
         .split(' - ')[0]
         .replace(/\s+(SCALE|GROW|EXEC)$/i, '')

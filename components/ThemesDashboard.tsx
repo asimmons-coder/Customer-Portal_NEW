@@ -45,6 +45,7 @@ const ThemesDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -53,6 +54,7 @@ const ThemesDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
@@ -62,8 +64,8 @@ const ThemesDashboard: React.FC = () => {
           getProgramConfig()
         ]);
         
-        // Filter by company
-        const companyBase = company.split(' - ')[0].toLowerCase();
+        // Use accountName if set (for multi-company accounts like Media Arts Lab)
+        const companyBase = (accName || company.split(' - ')[0]).toLowerCase();
         const filteredData = data.filter(s => {
           const sessionAccount = ((s as any).account_name || '').toLowerCase();
           const programTitle = ((s as any).program_title || '').toLowerCase();

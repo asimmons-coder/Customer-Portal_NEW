@@ -67,6 +67,7 @@ const HomeDashboard: React.FC = () => {
   const [programConfig, setProgramConfig] = useState<ProgramConfig[]>([]);
   const [companyName, setCompanyName] = useState('');
   const [companyId, setCompanyId] = useState('');
+  const [accountName, setAccountName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [benchmarks, setBenchmarks] = useState<{satisfaction: number, productivity: number, balance: number, motivation: number, inclusion: number}>({
     satisfaction: 0, productivity: 0, balance: 0, motivation: 0, inclusion: 0
@@ -88,6 +89,7 @@ const HomeDashboard: React.FC = () => {
         
         let company = session?.user?.app_metadata?.company || '';
         let compId = session?.user?.app_metadata?.company_id || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -97,6 +99,7 @@ const HomeDashboard: React.FC = () => {
               const override = JSON.parse(stored);
               company = override.name;
               compId = override.id || compId;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
@@ -106,6 +109,9 @@ const HomeDashboard: React.FC = () => {
         }
         if (compId) {
           setCompanyId(compId);
+        }
+        if (accName) {
+          setAccountName(accName);
         }
         if (session?.user?.app_metadata?.first_name || session?.user?.user_metadata?.first_name) {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
@@ -124,7 +130,14 @@ const HomeDashboard: React.FC = () => {
 
         // Fetch welcome survey completions for utilization calculation
         let welcomeSurveyData: any[] = [];
-        if (compId) {
+        if (accName) {
+          // Use account_name for grouped company queries
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .ilike('account', `%${accName}%`);
+          welcomeSurveyData = wsData || [];
+        } else if (compId) {
           const { data: wsData } = await supabase
             .from('welcome_survey_baseline')
             .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
@@ -158,8 +171,18 @@ const HomeDashboard: React.FC = () => {
           inclusion: getBenchmark('baseline_inclusion') || getBenchmark('baseline_satisfaction')
         });
         
-        // Helper to check if a value matches the company (case-insensitive, partial match)
+        // Helper to check if a value matches the company/account (case-insensitive, partial match)
         const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
+          // If we have an account_name, use that for matching (groups multiple companies)
+          if (accName) {
+            const accNameLower = accName.toLowerCase();
+            if (!value) return false;
+            const valueLower = value.toLowerCase();
+            // Match if account_name appears in the value
+            return valueLower.includes(accNameLower) || accNameLower.includes(valueLower.split(' - ')[0]);
+          }
+          
+          // Fallback to original company matching logic
           if (!company) {
             console.log('DEBUG matchesCompany: company is empty');
             return false;
