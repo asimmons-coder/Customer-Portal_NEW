@@ -1,3 +1,4 @@
+import { ADMIN_EMAILS } from '../constants';
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -86,25 +87,46 @@ const HomeDashboard: React.FC = () => {
         // Fetch Auth Session for Company Name and First Name
         const { data: { session } } = await supabase.auth.getSession();
         const email = session?.user?.email || '';
-        const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+        // ADMIN_EMAILS imported from constants
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+        
+        // DEBUG - admin check
+        console.log('DEBUG ADMIN CHECK:', {
+          email,
+          emailLower: email?.toLowerCase(),
+          isAdmin,
+          ADMIN_EMAILS_length: ADMIN_EMAILS.length,
+          ADMIN_EMAILS: ADMIN_EMAILS
+        });
         
         let company = session?.user?.app_metadata?.company || '';
         let compId = session?.user?.app_metadata?.company_id || '';
         let accName = session?.user?.app_metadata?.account_name || '';
         
+        // DEBUG - before override
+        console.log('DEBUG BEFORE OVERRIDE:', { company, compId, accName });
+        
         // Check for admin override
         if (isAdmin) {
           try {
             const stored = localStorage.getItem('boon_admin_company_override');
+            console.log('DEBUG OVERRIDE stored:', stored);
             if (stored) {
               const override = JSON.parse(stored);
+              console.log('DEBUG OVERRIDE parsed:', override);
               company = override.name;
               compId = override.id || compId;
               accName = override.account_name || accName;
             }
-          } catch {}
+          } catch (e) {
+            console.log('DEBUG OVERRIDE error:', e);
+          }
+        } else {
+          console.log('DEBUG: Not admin, skipping override check');
         }
+        
+        // DEBUG - after override
+        console.log('DEBUG AFTER OVERRIDE:', { company, compId, accName });
         
         if (company) {
           setCompanyName(company);
