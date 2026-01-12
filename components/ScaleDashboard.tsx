@@ -548,13 +548,21 @@ const ScaleDashboard: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <HealthCard 
           title="Adoption" 
           subtitle="Window Active / Eligible"
           value={`${m.adoptionRate.toFixed(1)}%`} 
           trend={m.priorAdoptionRate > 0 ? (m.adoptionRate - m.priorAdoptionRate) : null}
           icon={<Zap className="w-5 h-5 text-boon-blue" />}
+        />
+        <HealthCard 
+          title="Sessions" 
+          subtitle={`${windowDays === 365 ? 'Last 12 months' : `Last ${windowDays} days`}`}
+          value={m.currentSessionsCount} 
+          trend={m.priorSessionsCount > 0 ? ((m.currentSessionsCount - m.priorSessionsCount) / m.priorSessionsCount) * 100 : null}
+          icon={<Activity className="w-5 h-5 text-boon-coral" />}
+          trendLabel="vs prior period"
         />
         <HealthCard 
           title="Engagement" 
