@@ -84,6 +84,7 @@ const ImpactDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -92,11 +93,13 @@ const ImpactDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
         
-        const companyBase = company.split(' - ')[0].toLowerCase();
+        // Use accountName if set, otherwise fall back to company
+        const companyBase = (accName || company.split(' - ')[0]).toLowerCase();
         
         const [compData, baseData, surveyData] = await Promise.all([
           getCompetencyScores(),

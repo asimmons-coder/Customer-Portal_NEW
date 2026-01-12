@@ -95,6 +95,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         
         let company = session?.user?.app_metadata?.company || '';
         let companyId = session?.user?.app_metadata?.company_id || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -104,6 +105,7 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
               const override = JSON.parse(stored);
               company = override.name;
               companyId = override.id || companyId;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
@@ -116,7 +118,14 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         
         // Fetch welcome survey data
         let welcomeSurveyData: any[] = [];
-        if (companyId) {
+        if (accName) {
+          // Use account_name for grouped companies
+          const { data: wsData } = await supabase
+            .from('welcome_survey_baseline')
+            .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
+            .ilike('account', `%${accName}%`);
+          welcomeSurveyData = wsData || [];
+        } else if (companyId) {
           const { data: wsData } = await supabase
             .from('welcome_survey_baseline')
             .select('id, email, first_name, last_name, account, program_title, company_id, created_at')
@@ -130,10 +139,13 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
           welcomeSurveyData = wsData || [];
         }
         
+        // Use accountName for filtering if set
+        const filterBase = accName || company.split(' - ')[0];
+        
         // Helper to check if a value matches the company
         const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
-          if (!company) return false;
-          const companyBase = company.split(' - ')[0].toLowerCase();
+          if (!filterBase) return false;
+          const companyBase = filterBase.toLowerCase();
           
           // Check if program_title starts with TWC (for Wonderful Company)
           if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
@@ -154,6 +166,12 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
         if (mounted) {
           // Filter by company AND exclude canceled sessions
           const filteredSessions = sessionsData.filter(s => {
+            // For account_name queries, use matchesCompany
+            if (accName) {
+              const matchesCompanyFilter = matchesCompany((s as any).account_name, (s as any).program_title);
+              const isNotCanceled = !isCanceledSession(s.status || '');
+              return matchesCompanyFilter && isNotCanceled;
+            }
             // Prefer company_id match if available
             if (companyId && (s as any).company_id === companyId) {
               return !isCanceledSession(s.status || '');
@@ -163,6 +181,9 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
             return matchesCompanyFilter && isNotCanceled;
           });
           const filteredEmployees = rosterData.filter(e => {
+            if (accName) {
+              return matchesCompany((e as any).company_name) || matchesCompany((e as any).company);
+            }
             if (companyId && (e as any).company_id === companyId) return true;
             return matchesCompany((e as any).company_name) || matchesCompany((e as any).company);
           });

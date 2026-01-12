@@ -66,6 +66,7 @@ const EmployeeDashboard: React.FC = () => {
         
         let company = session?.user?.app_metadata?.company || '';
         let compId = session?.user?.app_metadata?.company_id || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
         if (isAdmin) {
@@ -75,17 +76,26 @@ const EmployeeDashboard: React.FC = () => {
               const override = JSON.parse(stored);
               company = override.name;
               compId = override.id || compId;
+              accName = override.account_name || accName;
             }
           } catch {}
         }
         
-        setCompanyName(company);
+        setCompanyName(accName || company);
         setCompanyId(compId);
 
-        // Fetch employees filtered by company_id if available, otherwise fall back to name matching
+        // Fetch employees - use account_name for grouped companies, otherwise company_id
         let empResult;
         
-        if (compId) {
+        if (accName) {
+          // Use account_name for multi-company accounts (like Media Arts Lab)
+          empResult = await supabase
+            .from('employee_manager')
+            .select('*')
+            .ilike('company_name', `%${accName}%`)
+            .neq('company_email', 'asimmons@boon-health.com')
+            .order('last_name', { ascending: true });
+        } else if (compId) {
           // Use exact company_id match (preferred)
           empResult = await supabase
             .from('employee_manager')
