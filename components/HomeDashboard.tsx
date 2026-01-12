@@ -17,7 +17,9 @@ import {
   getEmployeeRoster,
   getWelcomeSurveyData,
   getProgramConfig,
-  getFocusAreaSelections
+  getFocusAreaSelections,
+  CompanyFilter,
+  buildCompanyFilter
 } from '../lib/dataFetcher';
 import { 
   SessionWithEmployee, 
@@ -117,14 +119,19 @@ const HomeDashboard: React.FC = () => {
           setFirstName(session.user.app_metadata?.first_name || session.user.user_metadata?.first_name);
         }
 
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(compId, accName, company);
+
+        console.log('HomeDashboard using company filter:', companyFilter);
+
         const [sessData, compData, survData, empData, baseData, focusData, configData, benchmarkData] = await Promise.all([
-          getDashboardSessions(),
-          getCompetencyScores(),
-          getSurveyResponses(),
-          getEmployeeRoster(),
-          getWelcomeSurveyData(),
-          getFocusAreaSelections(),
-          getProgramConfig(),
+          getDashboardSessions(companyFilter),
+          getCompetencyScores(companyFilter),
+          getSurveyResponses(companyFilter),
+          getEmployeeRoster(companyFilter),
+          getWelcomeSurveyData(companyFilter),
+          getFocusAreaSelections(companyFilter),
+          getProgramConfig(companyFilter),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
 

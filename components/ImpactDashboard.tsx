@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getCompetencyScores, getWelcomeSurveyData, getSurveyResponses } from '../lib/dataFetcher';
+import { getCompetencyScores, getWelcomeSurveyData, getSurveyResponses, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { CompetencyScore, WelcomeSurveyEntry, SurveyResponse } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
@@ -84,6 +84,7 @@ const ImpactDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
         let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
@@ -93,40 +94,27 @@ const ImpactDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              companyId = override.id || companyId;
               accName = override.account_name || accName;
             }
           } catch {}
         }
-        
-        // Use accountName if set, otherwise fall back to company
-        const companyBase = (accName || company.split(' - ')[0]).toLowerCase();
+
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+        console.log('ImpactDashboard using company filter:', companyFilter);
         
         const [compData, baseData, surveyData] = await Promise.all([
-          getCompetencyScores(),
-          getWelcomeSurveyData(),
-          getSurveyResponses()
+          getCompetencyScores(companyFilter),
+          getWelcomeSurveyData(companyFilter),
+          getSurveyResponses(companyFilter)
         ]);
         
-        // Filter by company
-        const matchesCompany = (value: string | undefined | null): boolean => {
-          if (!value || !company) return false;
-          const valueBase = value.toLowerCase();
-          return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
-        };
-        
-        // For TWC, filter by program_title prefix
-        const matchesTWC = (programTitle: string | undefined | null): boolean => {
-          if (!programTitle) return false;
-          return companyBase.includes('wonderful') && programTitle.toLowerCase().startsWith('twc');
-        };
-        
-        const filteredScores = compData.filter(c => matchesCompany((c as any).account_name) || matchesTWC((c as any).program_title));
-        const filteredBaseline = baseData.filter(b => matchesCompany((b as any).account_name) || matchesTWC((b as any).program_title));
-        const filteredSurveys = surveyData.filter(s => matchesCompany((s as any).account_name) || matchesTWC((s as any).program_title));
-        
-        setScores(filteredScores);
-        setBaselineData(filteredBaseline);
-        setSurveys(filteredSurveys);
+        // Data is already filtered by company at the query level
+        setScores(compData);
+        setBaselineData(baseData);
+        setSurveys(surveyData);
       } catch (err: any) {
         setError(err.message || 'Failed to load competency data');
       } finally {

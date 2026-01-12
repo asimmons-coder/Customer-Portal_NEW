@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getWelcomeSurveyData, getProgramConfig, getFocusAreaSelections, getBaselineCompetencyScores } from '../lib/dataFetcher';
+import { getWelcomeSurveyData, getProgramConfig, getFocusAreaSelections, getBaselineCompetencyScores, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { WelcomeSurveyEntry, ProgramConfig, FocusAreaSelection, CompetencyScoreRecord } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import ExecutiveSignals from './ExecutiveSignals';
@@ -46,6 +46,7 @@ const BaselineDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
         let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
@@ -55,19 +56,22 @@ const BaselineDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              companyId = override.id || companyId;
               accName = override.account_name || accName;
             }
           } catch {}
         }
-        
-        // Use accountName if set, otherwise fall back to company
-        const companyBase = (accName || company.split(' - ')[0]).toLowerCase();
+
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+        console.log('BaselineDashboard using company filter:', companyFilter);
         
         const [result, focusData, competencyData, configData, benchmarkData] = await Promise.all([
-          getWelcomeSurveyData(),
-          getFocusAreaSelections(),
-          getBaselineCompetencyScores(),
-          getProgramConfig(),
+          getWelcomeSurveyData(companyFilter),
+          getFocusAreaSelections(companyFilter),
+          getBaselineCompetencyScores(companyFilter),
+          getProgramConfig(companyFilter),
           supabase.from('boon_benchmarks').select('*').eq('program_type', 'GROW')
         ]);
         
@@ -84,80 +88,11 @@ const BaselineDashboard: React.FC = () => {
           work_life_balance: getBenchmark('baseline_work_life_balance')
         });
         
-        // Filter by company
-        const filteredResult = result.filter(b => {
-          const account = ((b as any).account_name || (b as any).account || '').toLowerCase();
-          const programTitle = ((b as any).program_title || '').toLowerCase();
-          
-          // For Wonderful Company, only include TWC programs (exclude FSNA, etc.)
-          if (companyBase.includes('wonderful')) {
-            return programTitle.startsWith('twc');
-          }
-          
-          // For W&P (and other non-TWC companies), EXCLUDE any TWC programs
-          if (programTitle.startsWith('twc')) {
-            return false;
-          }
-          
-          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
-        });
-        
-        // Filter focus areas by company
-        const filteredFocusAreas = focusData.filter(f => {
-          const account = (f.account_name || '').toLowerCase();
-          const programTitle = (f.program_title || '').toLowerCase();
-          
-          if (companyBase.includes('wonderful')) {
-            return programTitle.startsWith('twc');
-          }
-          
-          // For non-TWC companies, exclude TWC programs
-          if (programTitle.startsWith('twc')) {
-            return false;
-          }
-          
-          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
-        });
-        
-        // Filter baseline competencies by company
-        const filteredCompetencies = competencyData.filter(c => {
-          const account = (c.account_name || '').toLowerCase();
-          const programTitle = (c.program_title || '').toLowerCase();
-          
-          if (companyBase.includes('wonderful')) {
-            return programTitle.startsWith('twc');
-          }
-          
-          // For non-TWC companies, exclude TWC programs
-          if (programTitle.startsWith('twc')) {
-            return false;
-          }
-          
-          return account.includes(companyBase) || companyBase.includes(account.split(' - ')[0]);
-        });
-        
-        // Filter program config by company (also exclude non-TWC for Wonderful)
-        const filteredConfig = configData.filter(p => {
-          const accountName = (p.account_name || '').toLowerCase();
-          const programTitle = (p.program_title || '').toLowerCase();
-          
-          if (companyBase.includes('wonderful')) {
-            return programTitle.startsWith('twc');
-          }
-          
-          // For non-TWC companies, exclude TWC programs
-          if (programTitle.startsWith('twc')) {
-            return false;
-          }
-          
-          return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
-        });
-        
-        console.log("Raw Baseline Data:", filteredResult); // Debug log
-        setData(filteredResult);
-        setFocusAreas(filteredFocusAreas);
-        setBaselineCompetencies(filteredCompetencies);
-        setProgramConfig(filteredConfig);
+        // Data is already filtered by company at the query level
+        setData(result);
+        setFocusAreas(focusData);
+        setBaselineCompetencies(competencyData);
+        setProgramConfig(configData);
       } catch (err: any) {
         setError(err.message || 'Failed to load survey data');
       } finally {

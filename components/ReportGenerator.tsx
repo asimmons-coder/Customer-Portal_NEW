@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getDashboardSessions, getCompetencyScores, getSurveyResponses, getProgramConfig } from '../lib/dataFetcher';
+import { getDashboardSessions, getCompetencyScores, getSurveyResponses, getProgramConfig, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { FileDown, Loader2, X } from 'lucide-react';
 import jsPDF from 'jspdf';
 
@@ -48,10 +48,42 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
   const handleOpen = async () => {
     setIsOpen(true);
     try {
-      // Get programs from session_tracking instead of program_config (RLS issues)
-      const { data } = await supabase
+      // Get company info from auth
+      const { data: { session } } = await supabase.auth.getSession();
+      const email = session?.user?.email || '';
+      const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+      const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+      
+      let company = session?.user?.app_metadata?.company || '';
+      let companyId = session?.user?.app_metadata?.company_id || '';
+      let accName = session?.user?.app_metadata?.account_name || '';
+      
+      // Check for admin override
+      if (isAdmin) {
+        try {
+          const stored = localStorage.getItem('boon_admin_company_override');
+          if (stored) {
+            const override = JSON.parse(stored);
+            company = override.name;
+            companyId = override.id || companyId;
+            accName = override.account_name || accName;
+          }
+        } catch {}
+      }
+
+      // Build company filter for query
+      let query = supabase
         .from('session_tracking')
         .select('program_title');
+      
+      if (companyId) {
+        query = query.eq('company_id', companyId);
+      } else if (accName || company) {
+        const companyBase = (accName || company.split(' - ')[0]).replace(/\s+(SCALE|GROW|EXEC)$/i, '').trim();
+        query = query.ilike('account_name', `%${companyBase}%`);
+      }
+
+      const { data } = await query;
       
       if (data) {
         const uniquePrograms = [...new Set(
@@ -66,8 +98,31 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
 
   const fetchReportData = async (): Promise<ReportData> => {
     const { data: { session } } = await supabase.auth.getSession();
-    const company = session?.user?.app_metadata?.company || '';
-    const companyBase = company.split(' - ')[0].toLowerCase();
+    const email = session?.user?.email || '';
+    const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+    const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+    
+    let company = session?.user?.app_metadata?.company || '';
+    let companyId = session?.user?.app_metadata?.company_id || '';
+    let accName = session?.user?.app_metadata?.account_name || '';
+    
+    // Check for admin override
+    if (isAdmin) {
+      try {
+        const stored = localStorage.getItem('boon_admin_company_override');
+        if (stored) {
+          const override = JSON.parse(stored);
+          company = override.name;
+          companyId = override.id || companyId;
+          accName = override.account_name || accName;
+        }
+      } catch {}
+    }
+
+    // Build company filter using helper
+    const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+    console.log('ReportGenerator using company filter:', companyFilter);
     
     // Calculate date range filter
     const now = new Date();
@@ -80,19 +135,6 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
     } else if (dateRange === 'q3') {
       startDate = new Date(2024, 6, 1); // Jul 1, 2024
     }
-    
-    const matchesCompany = (value: string | undefined | null, programTitle?: string | null): boolean => {
-      if (!company) return false;
-      if (companyBase.includes('wonderful') && programTitle && programTitle.toLowerCase().startsWith('twc')) {
-        return true;
-      }
-      if (!value) return false;
-      const valueBase = value.toLowerCase();
-      if (companyBase.includes('wonderful') && valueBase.includes('wonderful')) {
-        return true;
-      }
-      return valueBase.includes(companyBase) || companyBase.includes(valueBase.split(' - ')[0]);
-    };
     
     const matchesProgram = (programTitle: string | undefined | null): boolean => {
       if (selectedProgram === 'all') return true;
@@ -107,11 +149,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       return date >= startDate;
     };
     
-    // Fetch session data
+    // Fetch session data - already filtered by company at query level
     setProgress('Fetching session data...');
-    const allSessions = await getDashboardSessions();
+    const allSessions = await getDashboardSessions(companyFilter);
     const sessions = allSessions.filter(s => 
-      matchesCompany((s as any).account_name, (s as any).program_title) &&
       matchesProgram((s as any).program_title) &&
       matchesDateRange((s as any).session_date)
     );
@@ -167,11 +208,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
     
-    // Fetch competency scores
+    // Fetch competency scores - already filtered by company at query level
     setProgress('Analyzing competency growth...');
-    const allScores = await getCompetencyScores();
+    const allScores = await getCompetencyScores(companyFilter);
     const scores = allScores.filter(c => 
-      matchesCompany((c as any).account_name, (c as any).program_title) &&
       matchesProgram((c as any).program_title)
     );
     
@@ -207,11 +247,10 @@ const ReportGenerator: React.FC<ReportGeneratorProps> = ({
       ? competencyStats.reduce((sum, c) => sum + c.change, 0) / competencyStats.length 
       : 0;
     
-    // Fetch satisfaction data
+    // Fetch satisfaction data - already filtered by company at query level
     setProgress('Gathering satisfaction scores...');
-    const allSurveys = await getSurveyResponses();
+    const allSurveys = await getSurveyResponses(companyFilter);
     const surveys = allSurveys.filter(s => 
-      matchesCompany((s as any).account_name, (s as any).program_title) &&
       matchesProgram((s as any).program_title)
     );
     

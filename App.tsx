@@ -339,14 +339,24 @@ const MainPortalLayout: React.FC = () => {
           }
         }
 
-        // Fetch program titles for sidebar from sessions data (RLS handles account filtering)
+        // Fetch program titles for sidebar from sessions data - filtered by company
         let foundPrograms: string[] = [];
         try {
-          const { data: sessionPrograms, error: sessionError } = await supabase
+          // Build query with company filter
+          let sessionQuery = supabase
             .from('session_tracking')
             .select('program_title');
+          
+          // Apply company filter at query level
+          if (companyId) {
+            sessionQuery = sessionQuery.eq('company_id', companyId);
+          } else if (companyBase) {
+            sessionQuery = sessionQuery.ilike('account_name', `%${companyBase}%`);
+          }
 
-          console.log('Session programs query:', { sessionPrograms, sessionError });
+          const { data: sessionPrograms, error: sessionError } = await sessionQuery;
+
+          console.log('Session programs query:', { sessionPrograms, sessionError, companyId, companyBase });
 
           if (!sessionError && sessionPrograms && sessionPrograms.length > 0) {
             foundPrograms = [...new Set(

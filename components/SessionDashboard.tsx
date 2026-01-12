@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getDashboardSessions, getEmployeeRoster, getSurveyResponses } from '../lib/dataFetcher';
+import { getDashboardSessions, getEmployeeRoster, getSurveyResponses, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { SessionWithEmployee, Employee, SurveyResponse } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -109,11 +109,16 @@ const SessionDashboard: React.FC<SessionDashboardProps> = ({ filterType, filterV
             }
           } catch {}
         }
+
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+        console.log('SessionDashboard using company filter:', companyFilter);
         
         const [sessionsData, rosterData, surveyData] = await Promise.all([
-          getDashboardSessions(),
-          getEmployeeRoster(),
-          getSurveyResponses()
+          getDashboardSessions(companyFilter),
+          getEmployeeRoster(companyFilter),
+          getSurveyResponses(companyFilter)
         ]);
         
         // Fetch welcome survey data

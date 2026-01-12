@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { getDashboardSessions, getProgramConfig } from '../lib/dataFetcher';
+import { getDashboardSessions, getProgramConfig, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { SessionWithEmployee, ProgramConfig } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { CountUp, AnimatedProgressBar, HoverCard } from './Animations';
@@ -45,6 +45,7 @@ const ThemesDashboard: React.FC = () => {
         const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
         
         let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
         let accName = session?.user?.app_metadata?.account_name || '';
         
         // Check for admin override
@@ -54,49 +55,31 @@ const ThemesDashboard: React.FC = () => {
             if (stored) {
               const override = JSON.parse(stored);
               company = override.name;
+              companyId = override.id || companyId;
               accName = override.account_name || accName;
             }
           } catch {}
         }
+
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+        console.log('ThemesDashboard using company filter:', companyFilter);
         
         const [data, configData] = await Promise.all([
-          getDashboardSessions(),
-          getProgramConfig()
+          getDashboardSessions(companyFilter),
+          getProgramConfig(companyFilter)
         ]);
         
-        // Use accountName if set (for multi-company accounts like Media Arts Lab)
-        const companyBase = (accName || company.split(' - ')[0]).toLowerCase();
-        const filteredData = data.filter(s => {
-          const sessionAccount = ((s as any).account_name || '').toLowerCase();
-          const programTitle = ((s as any).program_title || '').toLowerCase();
-          
-          // Check if program_title starts with TWC (for Wonderful Company)
-          if (companyBase.includes('wonderful') && programTitle.startsWith('twc')) {
-            return true;
-          }
-          
-          // Special case: Wonderful Orchards is part of The Wonderful Company
-          if (companyBase.includes('wonderful') && sessionAccount.includes('wonderful')) {
-            return true;
-          }
-          
-          return sessionAccount.includes(companyBase) || companyBase.includes(sessionAccount.split(' - ')[0]);
+        // Sort program config by start date (most recent first)
+        const sortedConfig = configData.sort((a, b) => {
+          const dateA = a.program_start_date ? new Date(a.program_start_date).getTime() : 0;
+          const dateB = b.program_start_date ? new Date(b.program_start_date).getTime() : 0;
+          return dateB - dateA;
         });
         
-        // Filter program config by company and sort by start date
-        const filteredConfig = configData
-          .filter(p => {
-            const accountName = (p.account_name || '').toLowerCase();
-            return accountName.includes(companyBase) || companyBase.includes(accountName.split(' - ')[0]);
-          })
-          .sort((a, b) => {
-            const dateA = a.program_start_date ? new Date(a.program_start_date).getTime() : 0;
-            const dateB = b.program_start_date ? new Date(b.program_start_date).getTime() : 0;
-            return dateB - dateA; // Most recent first
-          });
-        
-        setSessions(filteredData);
-        setProgramConfig(filteredConfig);
+        setSessions(data);
+        setProgramConfig(sortedConfig);
       } catch (err: any) {
         setError(err.message || 'Failed to load session data');
       } finally {

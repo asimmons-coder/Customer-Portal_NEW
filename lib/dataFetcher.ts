@@ -16,18 +16,56 @@ import {
 } from '../types';
 
 // ============================================
-// EMPLOYEE & SESSION QUERIES (unchanged)
+// COMPANY FILTER CONTEXT
 // ============================================
 
 /**
- * Fetches all employees from the 'employee_manager' table.
+ * Filter options for company-scoped queries.
+ * 
+ * For single-company accounts (most customers):
+ *   - Use companyId for exact company match
+ * 
+ * For multi-location accounts (e.g., Media Arts Lab):
+ *   - Use companyId to get ALL locations
+ *   - Use accountName to filter to a specific location
+ *   - Use programTitle to filter to a specific program
+ * 
+ * Priority: companyId > accountName (companyId is preferred when both are set)
  */
-export const getEmployeeRoster = async (): Promise<Employee[]> => {
-  const { data, error } = await supabase
+export interface CompanyFilter {
+  companyId?: string;      // UUID - exact company match, gets ALL locations for that company
+  accountName?: string;    // Display name - partial match with ilike for specific location
+  programTitle?: string;   // Optional: filter to specific program within the company
+}
+
+// ============================================
+// EMPLOYEE & SESSION QUERIES
+// ============================================
+
+/**
+ * Fetches employees from the 'employee_manager' table, filtered by company.
+ * For multi-location accounts: accountName takes precedence to filter to specific location.
+ */
+export const getEmployeeRoster = async (filter?: CompanyFilter): Promise<Employee[]> => {
+  let query = supabase
     .from('employee_manager')
     .select('*')
-    .neq('company_email', 'asimmons@boon-health.com')
-    .order('last_name', { ascending: true });
+    .neq('company_email', 'asimmons@boon-health.com');
+
+  // Apply company filter at query level
+  // For multi-location: accountName takes precedence if set
+  if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  } else if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  }
+
+  // Optional program title filter
+  if (filter?.programTitle) {
+    query = query.eq('program_title', filter.programTitle);
+  }
+
+  const { data, error } = await query.order('last_name', { ascending: true });
 
   if (error) {
     console.error('Error fetching employees:', error);
@@ -35,7 +73,9 @@ export const getEmployeeRoster = async (): Promise<Employee[]> => {
     return [];
   }
 
-  return data.map((d: any) => ({
+  console.log(`Fetched ${data?.length || 0} employees for company filter:`, filter);
+
+  return (data || []).map((d: any) => ({
     ...d,
     full_name: d.first_name && d.last_name ? `${d.first_name} ${d.last_name}` : d.email,
     name: d.first_name && d.last_name ? `${d.first_name} ${d.last_name}` : d.email,
@@ -46,19 +86,40 @@ export const getEmployeeRoster = async (): Promise<Employee[]> => {
 export const fetchEmployees = getEmployeeRoster;
 
 /**
- * Fetches all sessions from 'session_tracking'.
+ * Fetches sessions from 'session_tracking', filtered by company.
+ * Uses batch fetching to avoid Supabase 1000 row limit.
+ * 
+ * For multi-location accounts: if accountName is provided, it takes precedence
+ * to filter to that specific location even if companyId is also set.
  */
-export const getDashboardSessions = async (): Promise<SessionWithEmployee[]> => {
-  // Fetch in batches to avoid Supabase 1000 row limit
+export const getDashboardSessions = async (filter?: CompanyFilter): Promise<SessionWithEmployee[]> => {
   let allData: any[] = [];
   let offset = 0;
   const batchSize = 1000;
   let hasMore = true;
 
   while (hasMore) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('session_tracking')
-      .select('*')
+      .select('*');
+
+    // Apply company filter at query level
+    // For multi-location: accountName takes precedence if set (filters to specific location)
+    // For single-company: use companyId for exact match
+    if (filter?.accountName) {
+      // Multi-location account - filter to specific location
+      query = query.ilike('account_name', `%${filter.accountName}%`);
+    } else if (filter?.companyId) {
+      // Single company account - get all data for this company
+      query = query.eq('company_id', filter.companyId);
+    }
+
+    // Optional program title filter
+    if (filter?.programTitle) {
+      query = query.eq('program_title', filter.programTitle);
+    }
+
+    const { data, error } = await query
       .order('session_date', { ascending: false })
       .range(offset, offset + batchSize - 1);
 
@@ -77,12 +138,12 @@ export const getDashboardSessions = async (): Promise<SessionWithEmployee[]> => 
     }
   }
 
-  console.log(`Fetched ${allData.length} total sessions`);
+  console.log(`Fetched ${allData.length} total sessions for company filter:`, filter);
   return allData as SessionWithEmployee[];
 };
 
-export const fetchSessions = async (): Promise<Session[]> => {
-    return (await getDashboardSessions()) as unknown as Session[];
+export const fetchSessions = async (filter?: CompanyFilter): Promise<Session[]> => {
+    return (await getDashboardSessions(filter)) as unknown as Session[];
 }
 
 // ============================================
@@ -92,11 +153,18 @@ export const fetchSessions = async (): Promise<Session[]> => {
 /**
  * Fetches all survey submissions from the unified survey_submissions table.
  */
-export const getSurveySubmissions = async (surveyType?: 'baseline' | 'end_of_program'): Promise<SurveySubmission[]> => {
+export const getSurveySubmissions = async (surveyType?: 'baseline' | 'end_of_program', filter?: CompanyFilter): Promise<SurveySubmission[]> => {
   let query = supabase.from('survey_submissions').select('*');
   
   if (surveyType) {
     query = query.eq('survey_type', surveyType);
+  }
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
   }
 
   const { data, error } = await query;
@@ -114,10 +182,19 @@ export const getSurveySubmissions = async (surveyType?: 'baseline' | 'end_of_pro
  * Fetches competency pre/post comparison data from the view.
  * This is the primary source for competency growth calculations.
  */
-export const getCompetencyPrePost = async (): Promise<CompetencyPrePost[]> => {
-  const { data, error } = await supabase
+export const getCompetencyPrePost = async (filter?: CompanyFilter): Promise<CompetencyPrePost[]> => {
+  let query = supabase
     .from('competency_pre_post')
     .select('*');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching competency pre/post:', error);
@@ -131,11 +208,20 @@ export const getCompetencyPrePost = async (): Promise<CompetencyPrePost[]> => {
 /**
  * Fetches focus area selections.
  */
-export const getFocusAreaSelections = async (): Promise<FocusAreaSelection[]> => {
-  const { data, error } = await supabase
+export const getFocusAreaSelections = async (filter?: CompanyFilter): Promise<FocusAreaSelection[]> => {
+  let query = supabase
     .from('focus_area_selections')
     .select('*')
     .eq('selected', true);
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching focus area selections:', error);
@@ -150,11 +236,20 @@ export const getFocusAreaSelections = async (): Promise<FocusAreaSelection[]> =>
  * Fetches baseline competency scores from competency_scores table.
  * Used for baseline dashboard competency averages.
  */
-export const getBaselineCompetencyScores = async (): Promise<CompetencyScoreRecord[]> => {
-  const { data, error } = await supabase
+export const getBaselineCompetencyScores = async (filter?: CompanyFilter): Promise<CompetencyScoreRecord[]> => {
+  let query = supabase
     .from('competency_scores')
     .select('*')
     .eq('score_type', 'baseline');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching baseline competency scores:', error);
@@ -174,10 +269,19 @@ export const getBaselineCompetencyScores = async (): Promise<CompetencyScoreReco
  * Fetches competency scores in legacy format.
  * Uses competency_pre_post view and maps to CompetencyScore interface.
  */
-export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
-  const { data, error } = await supabase
+export const getCompetencyScores = async (filter?: CompanyFilter): Promise<CompetencyScore[]> => {
+  let query = supabase
     .from('competency_pre_post')
     .select('*');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching competency scores:', error);
@@ -203,18 +307,26 @@ export const getCompetencyScores = async (): Promise<CompetencyScore[]> => {
  * Fetches survey responses with NPS/CSAT data.
  * Includes end_of_program, feedback (every-other-session), first_session, AND touchpoint surveys.
  */
-export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
+export const getSurveyResponses = async (filter?: CompanyFilter): Promise<SurveyResponse[]> => {
   // Supabase has a 1000 row default limit. We need to paginate to get all records.
   const allData: any[] = [];
   let from = 0;
   const pageSize = 1000;
   
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('survey_submissions')
       .select('*')
-      .in('survey_type', ['end_of_program', 'feedback', 'first_session', 'touchpoint'])
-      .range(from, from + pageSize - 1);
+      .in('survey_type', ['end_of_program', 'feedback', 'first_session', 'touchpoint']);
+
+    // Apply company filter
+    if (filter?.companyId) {
+      query = query.eq('company_id', filter.companyId);
+    } else if (filter?.accountName) {
+      query = query.ilike('account_name', `%${filter.accountName}%`);
+    }
+
+    const { data, error } = await query.range(from, from + pageSize - 1);
 
     if (error) {
       console.error('Error fetching survey responses:', error);
@@ -263,10 +375,19 @@ export const getSurveyResponses = async (): Promise<SurveyResponse[]> => {
  * Fetches welcome survey baseline data in legacy format.
  * Uses welcome_survey_baseline table which has comp_* competency fields.
  */
-export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
-  const { data, error } = await supabase
+export const getWelcomeSurveyData = async (filter?: CompanyFilter): Promise<WelcomeSurveyEntry[]> => {
+  let query = supabase
     .from('welcome_survey_baseline')
     .select('*');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching welcome survey data:', error);
@@ -303,11 +424,20 @@ export const getWelcomeSurveyData = async (): Promise<WelcomeSurveyEntry[]> => {
  * Fetches welcome survey data for Scale programs.
  * For now, falls back to legacy table until Scale data is migrated.
  */
-export const getWelcomeSurveyScaleData = async (): Promise<WelcomeSurveyEntry[]> => {
+export const getWelcomeSurveyScaleData = async (filter?: CompanyFilter): Promise<WelcomeSurveyEntry[]> => {
   // TODO: Update when Scale data is migrated to survey_submissions
-  const { data, error } = await supabase
+  let query = supabase
     .from('welcome_survey_scale')
     .select('*');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching Scale welcome survey data:', error);
@@ -321,11 +451,11 @@ export const getWelcomeSurveyScaleData = async (): Promise<WelcomeSurveyEntry[]>
 /**
  * Fetches welcome survey data based on program type.
  */
-export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow' = 'grow'): Promise<WelcomeSurveyEntry[]> => {
+export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow' = 'grow', filter?: CompanyFilter): Promise<WelcomeSurveyEntry[]> => {
   if (programType === 'scale') {
-    return getWelcomeSurveyScaleData();
+    return getWelcomeSurveyScaleData(filter);
   }
-  return getWelcomeSurveyData();
+  return getWelcomeSurveyData(filter);
 };
 
 // ============================================
@@ -335,10 +465,19 @@ export const getWelcomeSurveyByProgramType = async (programType: 'scale' | 'grow
 /**
  * Fetches program configuration from program_config table.
  */
-export const getProgramConfig = async (): Promise<ProgramConfig[]> => {
-  const { data, error } = await supabase
+export const getProgramConfig = async (filter?: CompanyFilter): Promise<ProgramConfig[]> => {
+  let query = supabase
     .from('program_config')
     .select('*');
+
+  // Apply company filter
+  if (filter?.companyId) {
+    query = query.eq('company_id', filter.companyId);
+  } else if (filter?.accountName) {
+    query = query.ilike('account_name', `%${filter.accountName}%`);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching program config:', error);
@@ -400,4 +539,51 @@ export const calculateStats = (sessions: Session[]): DashboardStats => {
       return status === 'scheduled' && date >= now;
     }).length,
   };
+};
+
+// ============================================
+// HELPER: BUILD COMPANY FILTER FROM USER CONTEXT
+// ============================================
+
+/**
+ * Builds the appropriate CompanyFilter based on user metadata.
+ * 
+ * Logic:
+ * - If user has account_name in JWT → they're part of a multi-location company
+ *   → Use accountName to filter to their specific location
+ * - If user only has company_id → single company account
+ *   → Use companyId to get all their company data
+ * - Fallback: use company name with partial matching
+ * 
+ * @param companyId - UUID from app_metadata.company_id
+ * @param accountName - Location name from app_metadata.account_name (for multi-location)
+ * @param companyName - Company name from app_metadata.company (fallback)
+ * @returns CompanyFilter configured for the user's access level
+ */
+export const buildCompanyFilter = (
+  companyId?: string,
+  accountName?: string,
+  companyName?: string
+): CompanyFilter => {
+  // Multi-location account: user has specific account_name
+  if (accountName) {
+    return { accountName };
+  }
+  
+  // Single company account: use company_id
+  if (companyId) {
+    return { companyId };
+  }
+  
+  // Fallback: use company name with cleaning
+  if (companyName) {
+    const cleanName = companyName
+      .split(' - ')[0]
+      .replace(/\s+(SCALE|GROW|EXEC)$/i, '')
+      .trim();
+    return { accountName: cleanName };
+  }
+  
+  // No filter - will return all data (should not happen in practice)
+  return {};
 };

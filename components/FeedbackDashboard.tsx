@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { getSurveyResponses, getEmployeeRoster, getCompetencyScores } from '../lib/dataFetcher';
+import { getSurveyResponses, getEmployeeRoster, getCompetencyScores, CompanyFilter, buildCompanyFilter } from '../lib/dataFetcher';
 import { SurveyResponse, CompetencyScore } from '../types';
+import { supabase } from '../lib/supabaseClient';
 import { 
   Award,
   AlertCircle,
@@ -22,10 +23,39 @@ const FeedbackDashboard: React.FC = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        
+        // Get company from auth
+        const { data: { session } } = await supabase.auth.getSession();
+        const email = session?.user?.email || '';
+        const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+        const isAdmin = ADMIN_EMAILS.includes(email?.toLowerCase());
+        
+        let company = session?.user?.app_metadata?.company || '';
+        let companyId = session?.user?.app_metadata?.company_id || '';
+        let accName = session?.user?.app_metadata?.account_name || '';
+        
+        // Check for admin override
+        if (isAdmin) {
+          try {
+            const stored = localStorage.getItem('boon_admin_company_override');
+            if (stored) {
+              const override = JSON.parse(stored);
+              company = override.name;
+              companyId = override.id || companyId;
+              accName = override.account_name || accName;
+            }
+          } catch {}
+        }
+
+        // Build company filter using helper
+        const companyFilter = buildCompanyFilter(companyId, accName, company);
+
+        console.log('FeedbackDashboard using company filter:', companyFilter);
+
         const [surveys, roster, comps] = await Promise.all([
-          getSurveyResponses(),
-          getEmployeeRoster(),
-          getCompetencyScores()
+          getSurveyResponses(companyFilter),
+          getEmployeeRoster(companyFilter),
+          getCompetencyScores(companyFilter)
         ]);
         setSurveyData(surveys);
         setTotalEmployees(roster.length);

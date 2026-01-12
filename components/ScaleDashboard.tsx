@@ -5,7 +5,9 @@ import {
   getDashboardSessions, 
   getSurveyResponses, 
   getEmployeeRoster,
-  getWelcomeSurveyScaleData
+  getWelcomeSurveyScaleData,
+  CompanyFilter,
+  buildCompanyFilter
 } from '../lib/dataFetcher';
 import { 
   SessionWithEmployee, 
@@ -107,11 +109,18 @@ const ScaleDashboard: React.FC = () => {
         setCompanyId(compId);
         setAccountName(accName);
 
+        // Build company filter using helper
+        // For multi-location accounts (like Media Arts Lab), accName filters to specific location
+        // For single-company accounts (like MacKenzie-Childs), compId gets all company data
+        const companyFilter = buildCompanyFilter(compId, accName, company);
+
+        console.log('ScaleDashboard using company filter:', companyFilter);
+
         const [sessData, survData, empData, welcomeData] = await Promise.all([
-          getDashboardSessions(),
-          getSurveyResponses(),
-          getEmployeeRoster(),
-          getWelcomeSurveyScaleData()
+          getDashboardSessions(companyFilter),
+          getSurveyResponses(companyFilter),
+          getEmployeeRoster(companyFilter),
+          getWelcomeSurveyScaleData(companyFilter)
         ]);
         setSessions(sessData);
         setSurveys(survData);
