@@ -64,6 +64,7 @@ const ROLE_ORDER = ['Executive', 'Director', 'Manager', 'Senior', 'Individual Co
 const ScaleDashboard: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const windowDays = parseInt(searchParams.get('windowDays') || '365', 10);
+  const selectedProgram = searchParams.get('program') || 'All Programs';
   
   const [sessions, setSessions] = useState<SessionWithEmployee[]>([]);
   const [surveys, setSurveys] = useState<SurveyResponse[]>([]);
@@ -74,6 +75,7 @@ const ScaleDashboard: React.FC = () => {
   const [companyId, setCompanyId] = useState('');
   const [accountName, setAccountName] = useState('');
   const [expandedTheme, setExpandedTheme] = useState<string | null>(null);
+  const [programDropdownOpen, setProgramDropdownOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -125,8 +127,23 @@ const ScaleDashboard: React.FC = () => {
   }, []);
 
   const setWindow = (days: number) => {
-    setSearchParams({ windowDays: days.toString() });
+    setSearchParams({ windowDays: days.toString(), program: selectedProgram });
   };
+
+  const setProgram = (program: string) => {
+    setSearchParams({ windowDays: windowDays.toString(), program });
+    setProgramDropdownOpen(false);
+  };
+
+  // Get unique programs from sessions
+  const availablePrograms = useMemo(() => {
+    const programs = new Set<string>();
+    sessions.forEach(s => {
+      const pt = (s as any).program_title;
+      if (pt) programs.add(pt);
+    });
+    return ['All Programs', ...Array.from(programs).sort()];
+  }, [sessions]);
 
   const metrics = useMemo(() => {
     if (loading) return null;
@@ -146,11 +163,25 @@ const ScaleDashboard: React.FC = () => {
     console.log('Session Debug:', {
       companyName,
       currentAccount,
+      selectedProgram,
       totalSessionsFetched: sessions.length,
       sampleSessionAccounts: sessions.slice(0, 5).map(s => (s as any).account_name)
     });
 
-    const eligibleEmployees = employees.filter(e => 
+    // Filter by program if selected
+    const programFilteredSessions = selectedProgram === 'All Programs' 
+      ? sessions 
+      : sessions.filter(s => (s as any).program_title === selectedProgram);
+
+    const programFilteredEmployees = selectedProgram === 'All Programs'
+      ? employees
+      : employees.filter(e => (e as any).program_title === selectedProgram || (e as any).coaching_program === selectedProgram);
+
+    const programFilteredWelcomeSurveys = selectedProgram === 'All Programs'
+      ? welcomeSurveys
+      : welcomeSurveys.filter(w => w.program_title === selectedProgram);
+
+    const eligibleEmployees = programFilteredEmployees.filter(e => 
       e.status !== 'Inactive' && normalize(e.company_name || e.company).includes(currentAccount)
     );
 
@@ -161,7 +192,7 @@ const ScaleDashboard: React.FC = () => {
     });
 
     // Include only sessions that actually happened (exclude scheduled and coach no show)
-    const completedSessions = sessions.filter(s => {
+    const completedSessions = programFilteredSessions.filter(s => {
       const status = normalize(s.status || '');
       const account = normalize(
         (s as any).account_name || 
@@ -388,7 +419,7 @@ const ScaleDashboard: React.FC = () => {
         .flatMap(s => [(s as any).feedback_suggestions, (s as any).feedback_coach_description])
         .filter(f => f && typeof f === 'string' && f.length > 20)
     };
-  }, [sessions, surveys, employees, welcomeSurveys, windowDays, companyName, loading]);
+  }, [sessions, surveys, employees, welcomeSurveys, windowDays, companyName, loading, selectedProgram]);
 
   // Prepare data for AI Insights
   const aiInsightsData = useMemo(() => {
@@ -464,16 +495,47 @@ const ScaleDashboard: React.FC = () => {
           </div>
         </div>
         
-        <div className="bg-gray-50 p-1 rounded-xl flex items-center border border-gray-100">
-          {[30, 90, 180, 365].map((d) => (
+        <div className="flex items-center gap-3">
+          {/* Program Filter Dropdown */}
+          <div className="relative">
             <button
-              key={d}
-              onClick={() => setWindow(d)}
-              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${windowDays === d ? 'bg-boon-dark text-white shadow-sm' : 'text-gray-400 hover:text-boon-dark'}`}
+              onClick={() => setProgramDropdownOpen(!programDropdownOpen)}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-100 transition min-w-[200px] justify-between"
             >
-              {d === 365 ? '1 Year' : `${d} Days`}
+              <span className="truncate">{selectedProgram}</span>
+              <ChevronDown size={16} className={`transition-transform ${programDropdownOpen ? 'rotate-180' : ''}`} />
             </button>
-          ))}
+            {programDropdownOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setProgramDropdownOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-xl border border-gray-200 z-20 max-h-80 overflow-y-auto">
+                  {availablePrograms.map(program => (
+                    <button
+                      key={program}
+                      onClick={() => setProgram(program)}
+                      className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 transition ${
+                        selectedProgram === program ? 'bg-boon-blue/10 text-boon-blue font-bold' : 'text-gray-700'
+                      }`}
+                    >
+                      {program}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="bg-gray-50 p-1 rounded-xl flex items-center border border-gray-100">
+            {[30, 90, 180, 365].map((d) => (
+              <button
+                key={d}
+                onClick={() => setWindow(d)}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${windowDays === d ? 'bg-boon-dark text-white shadow-sm' : 'text-gray-400 hover:text-boon-dark'}`}
+              >
+                {d === 365 ? '1 Year' : `${d} Days`}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
