@@ -318,7 +318,15 @@ const MainPortalLayout: React.FC = () => {
 
         // Get program type from JWT app_metadata (no DB query needed - avoids RLS issues)
         if (programTypeFromMeta) {
-          setProgramType(programTypeFromMeta as 'GROW' | 'Scale' | 'Exec');
+          // Normalize the program type (handle case variations)
+          const normalizedType = programTypeFromMeta.toLowerCase();
+          if (normalizedType === 'scale') {
+            setProgramType('Scale');
+          } else if (normalizedType === 'exec') {
+            setProgramType('Exec');
+          } else {
+            setProgramType('GROW');
+          }
           Sentry.setTag('program_type', programTypeFromMeta);
         } else {
           // Fallback: check if company name contains Scale
