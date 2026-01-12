@@ -2,6 +2,7 @@ import * as Sentry from "@sentry/react";
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { ADMIN_EMAILS } from './constants';
 import LoginPage from './components/LoginPage'; 
 import ResetPasswordPage from './components/ResetPasswordPage';
 import ProtectedRoute from './components/ProtectedRoute'; 
@@ -59,7 +60,6 @@ const getDisplayName = (program: string): string => {
 };
 
 // --- Admin Company Switcher ---
-import { ADMIN_EMAILS } from './constants';
 const ADMIN_COMPANY_KEY = 'boon_admin_company_override';
 
 const AdminCompanySwitcher: React.FC<{ 
