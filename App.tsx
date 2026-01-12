@@ -59,7 +59,7 @@ const getDisplayName = (program: string): string => {
 };
 
 // --- Admin Company Switcher ---
-const ADMIN_EMAILS = ['asimmons@boon-health.com', 'alexsimm95@gmail.com', 'hello@boon-health.com'];
+import { ADMIN_EMAILS } from './constants';
 const ADMIN_COMPANY_KEY = 'boon_admin_company_override';
 
 const AdminCompanySwitcher: React.FC<{ 
